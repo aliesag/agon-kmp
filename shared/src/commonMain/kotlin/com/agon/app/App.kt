@@ -160,7 +160,15 @@ private fun MainContent(
                         HakimChatScreen(vm = vm, onBack = { nav.popBackStack() })
                     }
                     composable("profile") {
-                        ComingSoonScreen("المزيد", "الإعدادات والملف الشخصي في المرحلة القادمة") { nav.popBackStack() }
+                        SettingsScreen(
+                            vm = vm,
+                            authViewModel = null,
+                            onLogout = {
+                                nav.navigate("home") {
+                                    popUpTo("home") { inclusive = true }
+                                }
+                            }
+                        )
                     }
                     composable("detail/{id}") { entry ->
                         val id = entry.arguments?.getString("id").orEmpty()
