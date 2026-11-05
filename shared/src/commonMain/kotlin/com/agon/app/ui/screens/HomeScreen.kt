@@ -85,8 +85,7 @@ fun HomeScreen(
     val categories by vm.categories.collectAsStateWithLifecycle()
     val deviceType by vm.deviceType.collectAsStateWithLifecycle()
     val isTv = deviceType == "tv"
-    // Hero height: 16:9 responsive via BoxWithConstraints (CMP-safe)
-    var heroHeight by remember { mutableStateOf(if (isTv) 380.dp else 220.dp) }
+    val heroHeight = if (isTv) 380.dp else 540.dp
     val featuredShows = (categories.firstOrNull()?.shows?.take(5) ?: emptyList()).ifEmpty { listOfNotNull(Catalog.featured) }
     val lastWatchedShow by vm.lastWatchedShow.collectAsStateWithLifecycle()
     val lastWatchedEpisode by vm.lastWatchedEpisode.collectAsStateWithLifecycle()
@@ -151,11 +150,7 @@ fun HomeScreen(
             }
         }
     } else {
-        androidx.compose.foundation.layout.BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
-            val screenW = maxWidth
-            val computedHero = if (isTv) 380.dp else (screenW * 0.56f).coerceAtMost(320.dp)
-            if (heroHeight != computedHero) heroHeight = computedHero
-            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
             LazyColumn(
                 contentPadding = PaddingValues(bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
@@ -169,8 +164,6 @@ fun HomeScreen(
                     val pagerState = androidx.compose.foundation.pager.rememberPagerState { featuredShows.size }
                     androidx.compose.foundation.pager.HorizontalPager(
                         state = pagerState,
-                        contentPadding = PaddingValues(horizontal = 16.dp),
-                        pageSpacing = 12.dp,
                         modifier = Modifier.fillMaxWidth().height(heroHeight)
                     ) { page ->
                         val show = featuredShows[page]

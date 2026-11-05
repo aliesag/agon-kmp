@@ -1,7 +1,6 @@
 package com.agon.app.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -16,8 +15,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -34,7 +35,9 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -61,13 +64,14 @@ fun SearchScreen(vm: AppViewModel, onOpenShow: (String) -> Unit) {
     var initialLoading by remember { mutableStateOf(true) }
 
     LaunchedEffect(Unit) {
-        // Trigger full catalog if empty
+        // Ensure the full catalog starts loading immediately in background
         try {
             if (!vm.fullCatalogLoaded.value) {
                 vm.fetchFullCatalogFromSite()
             }
         } catch (_: Throwable) { }
-        kotlinx.coroutines.delay(500)
+        // Show loading briefly even if results are local
+        kotlinx.coroutines.delay(800)
         initialLoading = false
     }
 
@@ -79,12 +83,42 @@ fun SearchScreen(vm: AppViewModel, onOpenShow: (String) -> Unit) {
 
     val searchFilters = remember {
         listOf(
-            "الكل", "أفلام", "مسلسلات عربية", "مسلسلات تركية", "مدبلج", "مترجم",
-            "خليجي", "رمضان", "دراما", "كوميدي", "أكشن", "رومانسي"
+            "الكل",
+            "أفلام",
+            "مسلسلات عربية",
+            "مسلسلات تركية",
+            "مدبلج",
+            "مترجم",
+            "خليجي",
+            "رمضان",
+            "دراما",
+            "كوميدي",
+            "أكشن",
+            "رومانسي"
         )
     }
 
-    val results = try { vm.search(query, filterType) } catch (_: Throwable) { emptyList() }
+    val results = vm.search(query, filterType)
+
+    var displayLimit by remember(query, filterType, results.size) { mutableIntStateOf(20) }
+    val paginatedResults = remember(results, displayLimit) {
+        results.take(displayLimit)
+    }
+
+    val gridState = rememberLazyGridState()
+    val shouldLoadMore = remember {
+        derivedStateOf {
+            val totalItems = gridState.layoutInfo.totalItemsCount
+            val lastVisibleItem = gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
+            totalItems > 0 && lastVisibleItem >= totalItems - 4
+        }
+    }
+
+    LaunchedEffect(shouldLoadMore.value) {
+        if (shouldLoadMore.value && displayLimit < results.size) {
+            displayLimit += 20
+        }
+    }
 
     var showVoiceSearchOverlay by remember { mutableStateOf(false) }
 
@@ -111,11 +145,21 @@ fun SearchScreen(vm: AppViewModel, onOpenShow: (String) -> Unit) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     if (query.isNotEmpty()) {
                         IconButton(onClick = { query = "" }) {
-                            Icon(Icons.Filled.Close, contentDescription = "مسح", tint = Color.Gray)
+                            Icon(
+                                Icons.Filled.Close,
+                                contentDescription = "مسح",
+                                tint = Color.Gray
+                            )
                         }
                     }
-                    IconButton(onClick = { showVoiceSearchOverlay = true }) {
-                        Icon(Icons.Filled.Mic, contentDescription = "بحث بالصوت", tint = Color(0xFFE50914))
+                    IconButton(onClick = {
+                        showVoiceSearchOverlay = true
+                    }) {
+                        Icon(
+                            Icons.Filled.Mic,
+                            contentDescription = "بحث بالصوت",
+                            tint = Color(0xFFE50914)
+                        )
                     }
                 }
             },
@@ -132,7 +176,9 @@ fun SearchScreen(vm: AppViewModel, onOpenShow: (String) -> Unit) {
                 focusedLeadingIconColor = Color(0xFFE50914),
                 unfocusedLeadingIconColor = Color.Gray
             ),
-            modifier = Modifier.fillMaxWidth().padding(horizontal = horizontalPadding),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = horizontalPadding),
         )
 
         Spacer(Modifier.height(12.dp))
@@ -160,120 +206,120 @@ fun SearchScreen(vm: AppViewModel, onOpenShow: (String) -> Unit) {
             }
         }
 
-        Spacer(Modifier.height(8.dp))
+        Spacer(Modifier.height(12.dp))
 
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = horizontalPadding),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "النتائج: ${results.size}",
-                color = Color(0xFF8C8C94),
-                fontSize = 12.sp
-            )
-            if (query.isEmpty()) {
-                Text(
-                    text = "جلب كل المسلسلات",
-                    color = Color(0xFFE50914),
-                    fontSize = 13.sp,
-                    fontWeight = FontWeight.Bold,
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(8.dp))
-                        .clickable { vm.fetchFullCatalogFromSite() }
-                        .padding(horizontal = 12.dp, vertical = 6.dp)
-                )
-            }
-        }
-
-        Spacer(Modifier.height(8.dp))
-
-        when {
-            isSearchingRemote || (initialLoading && query.isEmpty()) -> {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        CircularProgressIndicator(color = Color(0xFFE50914), modifier = Modifier.size(48.dp))
-                        Spacer(Modifier.height(16.dp))
-                        Text(
-                            text = if (initialLoading && query.isEmpty()) "جاري التحميل..." else "جاري البحث...",
-                            color = Color.White, fontSize = 15.sp, fontWeight = FontWeight.Bold
-                        )
-                    }
+        if (isSearchingRemote || (initialLoading && query.isEmpty())) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator(
+                        color = Color(0xFFE50914),
+                        modifier = Modifier.size(48.dp)
+                    )
+                    Spacer(Modifier.height(16.dp))
+                    Text(
+                        text = if (initialLoading && query.isEmpty()) "جاري التحميل..." else "جاري البحث وجلب المسلسلات...",
+                        color = Color.White,
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
             }
-            results.isEmpty() -> {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Icon(Icons.Filled.SearchOff, contentDescription = null,
-                            tint = MaterialTheme.colorScheme.outline, modifier = Modifier.size(64.dp))
-                        Spacer(Modifier.height(12.dp))
-                        Text("لا توجد نتائج مطابقة", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    }
+        } else if (results.isEmpty()) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        Icons.Filled.SearchOff,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.outline,
+                        modifier = Modifier.size(64.dp),
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    Text("لا توجد نتائج مطابقة", color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-            else -> {
-                val columns = if (deviceType == "tv") GridCells.Fixed(5) else GridCells.Fixed(3)
-                LazyVerticalGrid(
-                    columns = columns,
-                    contentPadding = PaddingValues(horizontal = horizontalPadding, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    verticalArrangement = Arrangement.spacedBy(14.dp),
-                    modifier = Modifier.weight(1f).fillMaxWidth(),
-                ) {
-                    items(results.take(200)) { show ->
-                        val isDubbed = show.genres.contains("مدبلج") || show.rating == "مدبلج"
-                        val isArabic = show.genres.any { it.contains("عرب") }
-                        val isTurkish = show.genres.any { it.contains("تركي") } || show.link.contains("3cktv")
-                        val isSubbed = show.genres.contains("مترجم") || (isTurkish && !isDubbed)
-                        val isRamadan = show.genres.contains("رمضان") || show.title.contains("رمضان")
-                        val isKhaleeji = show.genres.contains("خليجي")
+        } else {
+            val columns = if (deviceType == "tv") GridCells.Fixed(5) else GridCells.Fixed(3)
+            LazyVerticalGrid(
+                state = gridState,
+                columns = columns,
+                contentPadding = PaddingValues(horizontal = horizontalPadding, vertical = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+                modifier = Modifier.weight(1f).fillMaxWidth(),
+            ) {
+                items(paginatedResults) { show ->
+                    val isDubbed = show.genres.contains("مدبلج") || show.rating == "مدبلج" || show.title.contains("مدبلج")
+                    val isArabic = show.genres.any { it.contains("عرب") } || show.rating == "عربي" || show.id.startsWith("fosta_ser_") || show.id.startsWith("arabic_")
+                    val isTurkish = show.genres.any { it.contains("تركي") || it.contains("تركية") } || show.title.contains("تركي") || show.link.contains("3cktv")
+                    val isSubbed = show.genres.contains("مترجم") || show.rating == "مترجم" || (isTurkish && !isDubbed)
+                    val isRamadan = show.genres.contains("رمضان") || show.title.contains("رمضان") || show.id.contains("ramadan")
+                    val isKhaleeji = show.genres.contains("خليجي") || show.id.contains("kleeji")
 
-                        val tagText = when {
-                            show.isMovie -> "فيلم"
-                            isRamadan -> "رمضان"
-                            isKhaleeji -> "خليجي"
-                            isDubbed -> "مدبلج"
-                            isSubbed -> "مترجم"
-                            isArabic -> "عربي"
-                            else -> show.rating.ifEmpty { "حصري" }
-                        }
-                        val tagBg = when {
-                            show.isMovie -> Color(0xFFE50914)
-                            isRamadan -> Color(0xFFFF9800)
-                            isKhaleeji -> Color(0xFF00ACC1)
-                            isDubbed -> Color(0xFF2E7D32)
-                            isSubbed -> Color(0xFF1565C0)
-                            isArabic -> Color(0xFF8E24AA)
-                            else -> Color(0xFFE50914).copy(alpha = 0.8f)
-                        }
+                    val tagText = when {
+                        show.isMovie -> "فيلم"
+                        isRamadan -> "رمضان"
+                        isKhaleeji -> "خليجي"
+                        isDubbed -> "مدبلج"
+                        isSubbed -> "مترجم"
+                        isArabic -> "عربي"
+                        else -> show.rating.ifEmpty { "حصري" }
+                    }
+                    val tagBg = when {
+                        show.isMovie -> Color(0xFFE50914)
+                        isRamadan -> Color(0xFFFF9800)
+                        isKhaleeji -> Color(0xFF00ACC1)
+                        isDubbed -> Color(0xFF2E7D32)
+                        isSubbed -> Color(0xFF1565C0)
+                        isArabic -> Color(0xFF8E24AA)
+                        else -> Color(0xFFE50914).copy(alpha = 0.8f)
+                    }
 
-                        Column(
+                    Column(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(8.dp))
+                            .tvClickable(shape = RoundedCornerShape(8.dp)) { onOpenShow(show.id) }
+                    ) {
+                        Box(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .tvClickable(shape = RoundedCornerShape(8.dp)) { onOpenShow(show.id) }
+                                .fillMaxWidth()
+                                .aspectRatio(2f / 3f)
                         ) {
-                            Box(modifier = Modifier.fillMaxWidth().aspectRatio(2f / 3f)) {
-                                PosterArt(
-                                    showId = show.id,
-                                    posterUrl = show.poster,
-                                    title = show.title,
-                                    modifier = Modifier.fillMaxSize(),
-                                    titleSize = 14,
-                                    onClick = { onOpenShow(show.id) }
+                            PosterArt(showId = show.id, posterUrl = show.poster, title = show.title, modifier = Modifier.fillMaxSize(), titleSize = 14, onClick = { onOpenShow(show.id) })
+
+                            // Dubbed / Subtitled tag badge
+                            Box(
+                                modifier = Modifier
+                                    .align(Alignment.TopEnd)
+                                    .padding(4.dp)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(tagBg)
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = tagText,
+                                    color = Color.White,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold
                                 )
-                                Box(
-                                    modifier = Modifier
-                                        .align(Alignment.TopEnd)
-                                        .padding(4.dp)
-                                        .clip(RoundedCornerShape(4.dp))
-                                        .background(tagBg)
-                                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                                ) {
-                                    Text(tagText, color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
-                                }
                             }
-                            Spacer(Modifier.height(4.dp))
-                            RatingBadge(show.imdb)
+                        }
+                        Spacer(Modifier.height(4.dp))
+                        RatingBadge(show.imdb)
+                    }
+                }
+
+                if (displayLimit < results.size) {
+                    item(span = { GridItemSpan(maxLineSpan) }) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 20.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            CircularProgressIndicator(
+                                color = Color(0xFFE50914),
+                                modifier = Modifier.size(32.dp)
+                            )
                         }
                     }
                 }

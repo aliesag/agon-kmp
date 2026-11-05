@@ -6,9 +6,8 @@ struct iOSApp: App {
     var body: some Scene {
         WindowGroup {
             ComposeView()
-                // Bottom & horizontal edge-to-edge (home indicator + video).
-                // TOP respects the notch so buttons never go under the camera.
-                .ignoresSafeArea(edges: [.bottom, .horizontal])
+                // Let Compose own all edges — ComposeUIViewController will respect system insets
+                .ignoresSafeArea()
         }
     }
 }

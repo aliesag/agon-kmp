@@ -6,6 +6,8 @@ import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -287,7 +289,7 @@ private fun BrandBar(
         modifier = Modifier
             .fillMaxWidth()
             .background(BgColor)
-            .windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.statusBars)
+            .statusBarsPadding()
             .padding(horizontal = 16.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
@@ -399,7 +401,7 @@ private fun TopBarScreen(
         if (!hideBack) {
             Row(
                 modifier = Modifier.fillMaxWidth().background(SurfaceColor)
-                    .windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.statusBars)
+                    .statusBarsPadding()
                     .padding(horizontal = 8.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -425,7 +427,7 @@ private fun BottomNav(nav: NavHostController, currentRoute: String?) {
     )
     Surface(color = SurfaceColor, shadowElevation = 8.dp) {
         Row(
-            modifier = Modifier.fillMaxWidth().height(64.dp),
+            modifier = Modifier.fillMaxWidth().height(64.dp).navigationBarsPadding(),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceEvenly
         ) {
