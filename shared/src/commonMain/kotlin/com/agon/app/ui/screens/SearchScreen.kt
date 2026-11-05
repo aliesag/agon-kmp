@@ -25,6 +25,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SearchOff
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -46,9 +47,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.agon.app.data.Catalog
 import com.agon.app.ui.components.PosterArt
 import com.agon.app.ui.components.RatingBadge
+import com.agon.app.ui.components.VoiceSearchOverlay
 import com.agon.app.ui.tvClickable
 import com.agon.app.viewmodel.AppViewModel
 
@@ -61,7 +62,6 @@ fun SearchScreen(vm: AppViewModel, onOpenShow: (String) -> Unit) {
     var initialLoading by remember { mutableStateOf(true) }
 
     LaunchedEffect(Unit) {
-        // Show loading briefly even if results are local, to fulfill user requirement
         kotlinx.coroutines.delay(800)
         initialLoading = false
     }
@@ -88,13 +88,11 @@ fun SearchScreen(vm: AppViewModel, onOpenShow: (String) -> Unit) {
             "رومانسي"
         )
     }
-    
+
     val results = vm.search(query, filterType)
 
     var displayLimit by remember(query, filterType, results.size) { mutableIntStateOf(20) }
-    val paginatedResults = remember(results, displayLimit) {
-        results.take(displayLimit)
-    }
+    val paginatedResults = remember(results, displayLimit) { results.take(displayLimit) }
 
     val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
     val shouldLoadMore = remember {
@@ -114,7 +112,7 @@ fun SearchScreen(vm: AppViewModel, onOpenShow: (String) -> Unit) {
     var showVoiceSearchOverlay by remember { mutableStateOf(false) }
 
     if (showVoiceSearchOverlay) {
-        com.agon.app.ui.components.VoiceSearchOverlay(
+        VoiceSearchOverlay(
             visible = true,
             onDismiss = { showVoiceSearchOverlay = false },
             onResult = { text ->
@@ -202,7 +200,7 @@ fun SearchScreen(vm: AppViewModel, onOpenShow: (String) -> Unit) {
         if (isSearchingRemote || (initialLoading && query.isEmpty())) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    androidx.compose.material3.CircularProgressIndicator(
+                    CircularProgressIndicator(
                         color = Color(0xFFE50914),
                         modifier = Modifier.size(48.dp)
                     )
@@ -274,9 +272,15 @@ fun SearchScreen(vm: AppViewModel, onOpenShow: (String) -> Unit) {
                                 .fillMaxWidth()
                                 .aspectRatio(2f / 3f)
                         ) {
-                            PosterArt(showId = show.id, posterUrl = show.poster, title = show.title, modifier = Modifier.fillMaxSize(), titleSize = 14, onClick = { onOpenShow(show.id) })
-                            
-                            // Dubbed / Subtitled tag badge
+                            PosterArt(
+                                showId = show.id,
+                                posterUrl = show.poster,
+                                title = show.title,
+                                modifier = Modifier.fillMaxSize(),
+                                titleSize = 14,
+                                onClick = { onOpenShow(show.id) }
+                            )
+
                             Box(
                                 modifier = Modifier
                                     .align(Alignment.TopEnd)
@@ -306,7 +310,7 @@ fun SearchScreen(vm: AppViewModel, onOpenShow: (String) -> Unit) {
                                 .padding(vertical = 20.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            androidx.compose.material3.CircularProgressIndicator(
+                            CircularProgressIndicator(
                                 color = Color(0xFFE50914),
                                 modifier = Modifier.size(32.dp)
                             )
