@@ -182,13 +182,10 @@ fun OfflineScreen(
                                     .clip(RoundedCornerShape(8.dp))
                                     .background(Color(0xFF1E1E24))
                                     .clickable {
-                                        val file = java.io.File(episode.localFilePath)
-                                        if (file.exists() && file.length() > 0) {
-                                            onPlayEpisode(
-                                                episode.localFilePath,
-                                                "${episode.showTitle} - ${episode.episodeTitle}"
-                                            )
-                                        } else {
+                                        onPlayEpisode(
+                                            episode.localFilePath,
+                                            "${episode.showTitle} - ${episode.episodeTitle}"
+                                        ) else {
                                             /* toast removed */
                                         }
                                     }
