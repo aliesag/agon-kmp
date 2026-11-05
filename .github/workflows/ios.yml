@@ -16,29 +16,34 @@ jobs:
           key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: gradle-${{ runner.os }}-
       - run: brew install xcodegen
-      - name: Pre-download Gradle distribution
+      - name: Pre-download Gradle distribution (best-effort)
+        continue-on-error: true
         run: |
-          set -e
           GRADLE_VER=8.11.1
           DEST="$HOME/.gradle/wrapper/dists/gradle-$GRADLE_VER-bin"
+          if find "$DEST" -name "*.ok" 2>/dev/null | head -1 | grep -q .; then
+            echo "already cached"; exit 0
+          fi
           mkdir -p "$DEST"
-          # Find the hashed subdir Gradle expects, or let wrapper do it once
           for url in \
             "https://downloads.gradle.org/distributions/gradle-$GRADLE_VER-bin.zip" \
-            "https://services.gradle.org/distributions/gradle-$GRADLE_VER-bin.zip" \
-            "https://github.com/gradle/gradle-distributions/releases/download/v$GRADLE_VER/gradle-$GRADLE_VER-bin.zip"; do
-            if curl -fSL --retry 3 --retry-delay 2 -o "/tmp/gradle.zip" "$url"; then
-              echo "downloaded from $url"
-              # Compute expected hash dir the wrapper uses (it's a hex of the URL)
+            "https://services.gradle.org/distributions/gradle-$GRADLE_VER-bin.zip"; do
+            if curl -fSL --retry 3 --retry-delay 2 --max-time 180 -o "/tmp/gradle.zip" "$url"; then
               HASH=$(printf "%s" "$url" | shasum | cut -d' ' -f1)
-              mkdir -p "$DEST/$HASH"
-              unzip -q "/tmp/gradle.zip" -d "$DEST/$HASH"
-              # remove zip and create ok marker
-              touch "$DEST/$HASH/gradle-$GRADLE_VER-bin.zip.ok"
+              TARGET="$DEST/$HASH"
+              mkdir -p "$TARGET"
+              if command -v unzip >/dev/null; then
+                unzip -oq "/tmp/gradle.zip" -d "$TARGET" || true
+              else
+                (cd "$TARGET" && jar xf /tmp/gradle.zip) || true
+              fi
+              touch "$TARGET/gradle-$GRADLE_VER-bin.zip.ok"
+              echo "prepared $TARGET"
               exit 0
             fi
           done
-          echo "failed to download gradle"; exit 1
+          echo "pre-download skipped (wrapper will fetch)"
+
       - name: Generate Xcode project
         run: |
           cd iosApp
