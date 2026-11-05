@@ -219,7 +219,6 @@ fun DetailScreen(
                                 // Find first available episode to download
                                 episodes.firstOrNull()?.let { ep ->
                                     com.agon.app.data.EpisodeDownloaderManager.startDownload(
-                                        context = context,
                                         showId = show.id,
                                         showTitle = show.title,
                                         episodeId = ep.id,
@@ -478,7 +477,6 @@ fun DetailScreen(
                         val videoToDownload = ep.link.ifEmpty { show.link }
                         if (videoToDownload.isNotEmpty()) {
                             com.agon.app.data.EpisodeDownloaderManager.startDownload(
-                                context = context,
                                 showId = show.id,
                                 showTitle = show.title,
                                 episodeId = ep.id,
