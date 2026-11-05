@@ -26,14 +26,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
-import com.agon.app.R
+import coil3.compose.AsyncImage
 import com.agon.app.data.EpisodeDownloaderManager
 import com.agon.app.ui.theme.NetflixRed
 
@@ -103,7 +101,7 @@ fun OfflineScreen(
                     contentAlignment = Alignment.Center
                 ) {
                     Image(
-                        painter = painterResource(id = R.drawable.offline_sad_character),
+                        painter = org.jetbrains.compose.resources.painterResource(agon_kmp.shared.generated.resources.Res.drawable.offline_sad_character),
                         contentDescription = "لا يوجد اتصال",
                         contentScale = ContentScale.Crop,
                         modifier = Modifier.fillMaxSize()

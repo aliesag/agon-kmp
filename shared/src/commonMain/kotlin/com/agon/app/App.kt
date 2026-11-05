@@ -197,23 +197,29 @@ private fun MainContent(
                         )
                     }
                     composable("login") {
+                        val authVm = remember { com.agon.app.ui.AuthViewModel() }
                         LoginScreen(
-                            authViewModel = null,
-                            onSuccess = { nav.navigate("home") { popUpTo("home") { inclusive = true } } },
-                            onBack = { nav.popBackStack() }
+                            authViewModel = authVm,
+                            onLoginSuccess = { nav.navigate("home") { popUpTo("home") { inclusive = true } } },
+                            onNavigateRegister = { nav.navigate("register") },
+                            onNavigateForgotPassword = { nav.navigate("forgot_password") }
                         )
                     }
                     composable("register") {
+                        val authVm = remember { com.agon.app.ui.AuthViewModel() }
                         RegisterScreen(
-                            authViewModel = null,
-                            onSuccess = { nav.navigate("home") { popUpTo("home") { inclusive = true } } },
-                            onBack = { nav.popBackStack() }
+                            authViewModel = authVm,
+                            onRegisterSuccess = { nav.navigate("home") { popUpTo("home") { inclusive = true } } },
+                            onNavigateVerification = { },
+                            onNavigateLogin = { nav.navigate("login") },
+                            onStoreExtra = { username, age -> }
                         )
                     }
                     composable("forgot_password") {
+                        val authVm = remember { com.agon.app.ui.AuthViewModel() }
                         ForgotPasswordScreen(
-                            authViewModel = null,
-                            onBack = { nav.popBackStack() }
+                            authViewModel = authVm,
+                            onBackToLogin = { nav.popBackStack() }
                         )
                     }
                     composable("chat_login") {

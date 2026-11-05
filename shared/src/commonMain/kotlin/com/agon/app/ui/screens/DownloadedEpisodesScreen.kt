@@ -46,7 +46,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import coil.compose.AsyncImage
+import coil3.compose.AsyncImage
 import com.agon.app.data.EpisodeDownloaderManager
 import com.agon.app.ui.theme.NetflixRed
 
@@ -241,7 +241,7 @@ fun DownloadedEpisodesScreen(
                             }
 
                             IconButton(
-                                onClick = { EpisodeDownloaderManager.deleteDownloadedEpisode(context, item.id) }
+                                onClick = { EpisodeDownloaderManager.deleteDownloadedEpisode(context) }
                             ) {
                                 Icon(
                                     imageVector = Icons.Filled.Delete,
