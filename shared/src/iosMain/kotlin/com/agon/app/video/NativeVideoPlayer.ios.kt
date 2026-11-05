@@ -62,7 +62,7 @@ actual fun NativeVideoPlayer(
         }.let { it }
         val token = NSNotificationCenter.defaultCenter.addObserverForName(
             name = AVPlayerItemDidPlayToEndTimeNotification,
-            `object` = player.currentItem(),
+            `object` = player.currentItem,
             queue = NSOperationQueue.mainQueue,
             usingBlock = { _ -> if (loop) { player.seekToTime(CMTimeMake(value = 0, timescale = 1)); player.play() } else onFinished() }
         )
