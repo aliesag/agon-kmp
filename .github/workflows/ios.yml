@@ -2,7 +2,7 @@ name: ios-ipa
 on: { workflow_dispatch: {}, push: { branches: [main] } }
 jobs:
   build:
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -48,9 +48,6 @@ jobs:
         run: |
           cd iosApp
           xcodegen
-          # Newer XcodeGen writes objectVersion=77 (Xcode 16 format),
-          # but macos-14 ships Xcode 15.4. Downgrade so Xcode 15 can open it.
-          sed -i '' -E 's/objectVersion = [0-9]+;/objectVersion = 60;/' iosApp.xcodeproj/project.pbxproj
           grep -m1 objectVersion iosApp.xcodeproj/project.pbxproj
       - name: Build unsigned
         run: |
