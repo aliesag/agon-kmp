@@ -161,6 +161,20 @@ object Catalog {
         return false
     }
 
+    fun isFollowUpAboutContextShow(msg: String): Boolean {
+        val clean = normalizeTitle(msg).lowercase()
+        val followUpKeywords = listOf(
+            "تقييم", "تقييمه", "تقييمك", "تقييم عمل", "كم تقييم", "كم تقييمه", "كم تقييمك",
+            "قصة", "قصته", "قصة عمل", "وش قصته", "ما هي قصته", "ماهي قصته", "شنو قصته",
+            "ابطال", "أبطال", "ابطاله", "أبطاله", "مين الابطال", "من الأبطال", "مين أبطاله",
+            "مخرج", "مخرجه", "سنة", "سنة كم", "متى نزل", "كم حلقة", "عدد الحلقات",
+            "زر", "اخش", "ادخل", "اشوف", "شاهد", "مشاهدة", "رابط", "وين", "وين القاه",
+            "عطني اياه", "عطني إياه", "ابيه", "أبيه", "كيف اشوفه", "كيف ألقاه", "رايك فيه", "رأيك فيه"
+        )
+        return followUpKeywords.any { clean.contains(it) }
+    }
+
+
     fun findMatchingShow(query: String, allShows: List<Show>): Show? {
         if (query.isBlank()) return null
         if (isGeneralGreetingOrConversation(query)) return null

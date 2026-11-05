@@ -306,7 +306,7 @@ object EpisodeScraper {
                 val showSlug = showUrl.removeSuffix("/").substringAfterLast("/").replace(".html", "").replace(Regex("[^a-zA-Z0-9_]"), "_").ifEmpty { "show" }
 
                 val doc = try {
-                    kotlinx.coroutines.withTimeoutOrNull(8_000L) {
+                    kotlinx.coroutines.withTimeoutOrNull(35_000L) {
                         fetchDocWithBypass(targetUrl) ?: fetchDocOrThrow(targetUrl)
                     }
                 } catch (_: Throwable) { null }
@@ -384,6 +384,35 @@ object EpisodeScraper {
                                     )
                                 }
                             }
+                        }
+                    }
+
+                    // Priority 1.5: 3cktv direct .eplist a.epNum (works for musalsal-modablaj-* pages)
+                    if (episodes.isEmpty() && targetUrl.contains("3cktv")) {
+                        val epLinks = doc.select("ul.eplist a.epNum, ul.eplist a[href*='-ep-'], a.epNum[href*='-ep-']")
+                        epLinks.forEachIndexed { idx, aEl ->
+                            try {
+                                var link = aEl.attr("href").trim()
+                                if (link.startsWith("/")) link = "https://e.3cktv.com$link"
+                                if (!link.startsWith("http")) return@forEachIndexed
+                                val rawTitle = aEl.attr("title").ifEmpty { aEl.text() }.trim()
+                                val numMatch = Regex("""(\d+)""").find(rawTitle)
+                                    ?: Regex("""-ep-(\d+)""").find(link)
+                                val epNum = numMatch?.groupValues?.get(1) ?: (idx + 1).toString()
+                                val epId = "3ck_${showSlug}_ep$epNum"
+                                if (episodes.none { it.episodeNum == epNum }) {
+                                    episodes.add(
+                                        Episode(
+                                            id = epId,
+                                            title = "الحلقة $epNum",
+                                            episodeNum = epNum,
+                                            poster = "",
+                                            link = link,
+                                            seasonNumber = 1
+                                        )
+                                    )
+                                }
+                            } catch (_: Throwable) { }
                         }
                     }
 

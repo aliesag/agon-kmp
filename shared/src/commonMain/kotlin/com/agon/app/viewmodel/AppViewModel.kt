@@ -1479,14 +1479,14 @@ class AppViewModel(private val prefsManager: PrefsManager) : ViewModel() {
                 val jobs = listOf(
                     async {
                         try {
-                            withTimeoutOrNull(20_000L) {
+                            withTimeoutOrNull(35_000L) {
                                 com.agon.app.data.EpisodeScraper.search3cktv(query, maxPages = 3)
                             }.orEmpty()
                         } catch (_: Throwable) { emptyList<Show>() }
                     },
                     async {
                         try {
-                            withTimeoutOrNull(20_000L) {
+                            withTimeoutOrNull(35_000L) {
                                 com.agon.app.data.EpisodeScraper.searchFosta(query, maxPages = 2)
                             }.orEmpty()
                         } catch (_: Throwable) { emptyList<Show>() }

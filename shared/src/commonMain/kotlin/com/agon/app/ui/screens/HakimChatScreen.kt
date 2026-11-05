@@ -38,6 +38,16 @@ data class HakimMessage(
     val linkedShow: Show? = null,
 )
 
+private fun findLastDiscussedShowInKmp(messages: List<HakimMessage>, allShows: List<Show>): Show? {
+    for (msg in messages.asReversed()) {
+        val ls = msg.linkedShow ?: continue
+        // try to find a fresher version in allShows
+        val fresh = allShows.firstOrNull { it.id == ls.id || it.title.equals(ls.title, ignoreCase = true) }
+        return fresh ?: ls
+    }
+    return null
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HakimChatScreen(
@@ -117,18 +127,61 @@ fun HakimChatScreen(
         )
 
         scope.launch {
-            try {
-                vm.performRemoteSearch(text)
-                kotlinx.coroutines.delay(4000)
-            } catch (_: Throwable) { }
+            val isGreeting = try { Catalog.isGeneralGreetingOrConversation(text) } catch (_: Throwable) { false }
+            val isFollowUp = try { Catalog.isFollowUpAboutContextShow(text) } catch (_: Throwable) { false }
 
-            val currentShows = vm.shows.value
-            val matched = try { Catalog.findMatchingShow(text, currentShows) } catch (_: Exception) { null }
+            val currentMessages = messages.toList()
+            val currentShowsPre = vm.shows.value
+
+            // 1. Follow-up: reuse the last show from context
+            val contextShow = if (isFollowUp && !isGreeting) {
+                try { findLastDiscussedShowInKmp(currentMessages.filter { it.id != statusId }, currentShowsPre) } catch (_: Throwable) { null }
+            } else null
+
+            // 2. Direct local match
+            val localMatch = if (contextShow == null && !isGreeting) {
+                try { Catalog.findMatchingShow(text, currentShowsPre) } catch (_: Throwable) { null }
+            } else contextShow
+
+            // 3. If still not found and not a greeting: explicit remote search
+            val remoteMatch = if (localMatch == null && !isGreeting && !isFollowUp) {
+                try {
+                    val cleanSearch = text
+                        .replace("مسلسل", "").replace("فيلم", "").replace("فلم", "")
+                        .replace("عطني", "").replace("ابي", "").replace("أبيه", "")
+                        .replace("شاهد", "").replace("مشاهدة", "").replace("قصة", "")
+                        .trim()
+                    if (cleanSearch.length >= 2) {
+                        vm.searchShowRemotely(cleanSearch)
+                    } else null
+                } catch (_: Throwable) { null }
+            } else null
+
+            val matched = localMatch ?: remoteMatch
+
+            // 4. Background broader search (populates catalog for later)
+            if (!isGreeting) {
+                try {
+                    vm.performRemoteSearch(text)
+                    kotlinx.coroutines.delay(2500)
+                } catch (_: Throwable) { }
+            }
 
             // Remove the status bubble
             messages = messages.filterNot { it.id == statusId }
 
-            val prompt = buildSystemPrompt(matched)
+            // Re-try matching with possibly-enriched catalog
+            val finalMatched = matched ?: if (!isGreeting) {
+                try {
+                    val currentShows = vm.shows.value
+                    Catalog.findMatchingShow(text, currentShows)
+                        ?: currentShows.firstOrNull { sh ->
+                            sh.title.length >= 4 && text.contains(sh.title.substring(0, minOf(8, sh.title.length)), ignoreCase = true)
+                        }
+                } catch (_: Throwable) { null }
+            } else null
+
+            val prompt = buildSystemPrompt(finalMatched)
 
             val reply = try {
                 HakimConfigManager.askHakim(text, systemPrompt = prompt)
@@ -141,13 +194,6 @@ fun HakimChatScreen(
                 .replace("\\n", "\n")
                 .replace("\\\"", "\"")
                 .trim()
-
-            // Fallback: if direct match failed, try finding any show title mentioned in the reply
-            val finalMatched = matched ?: try {
-                shows.firstOrNull { s ->
-                    s.title.length >= 4 && cleaned.contains(s.title.substring(0, minOf(8, s.title.length)), ignoreCase = true)
-                }
-            } catch (_: Throwable) { null }
 
             val aiMsg = HakimMessage(
                 id = (messages.maxOfOrNull { it.id } ?: 0) + 1,
