@@ -61,6 +61,12 @@ fun SearchScreen(vm: AppViewModel, onOpenShow: (String) -> Unit) {
     var initialLoading by remember { mutableStateOf(true) }
 
     LaunchedEffect(Unit) {
+        // Trigger full catalog if empty
+        try {
+            if (!vm.fullCatalogLoaded.value) {
+                vm.fetchFullCatalogFromSite()
+            }
+        } catch (_: Throwable) { }
         kotlinx.coroutines.delay(500)
         initialLoading = false
     }

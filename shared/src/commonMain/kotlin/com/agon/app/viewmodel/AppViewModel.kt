@@ -1473,28 +1473,36 @@ class AppViewModel(private val prefsManager: PrefsManager) : ViewModel() {
         searchJob = viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
             _isSearchingRemote.value = true
             try {
-                delay(200) // debounce
+                delay(250) // debounce
 
-                // Run 3cktv + fosta in parallel, with per-call timeout
+                // 1. LOCAL FIRST — filter already-loaded catalog instantly
+                val local = try { search(query, "الكل") } catch (_: Throwable) { emptyList() }
+                if (local.isNotEmpty()) {
+                    // already in _shows; search() returns filtered list for UI, no need to add
+                    _isSearchingRemote.value = false
+                    return@launch
+                }
+
+                // 2. REMOTE — query the site's search endpoint with generous timeout
                 val jobs = listOf(
                     async {
                         try {
-                            withTimeoutOrNull(35_000L) {
+                            withTimeoutOrNull(30_000L) {
                                 com.agon.app.data.EpisodeScraper.search3cktv(query, maxPages = 3)
                             }.orEmpty()
                         } catch (_: Throwable) { emptyList<Show>() }
                     },
                     async {
                         try {
-                            withTimeoutOrNull(35_000L) {
+                            withTimeoutOrNull(30_000L) {
                                 com.agon.app.data.EpisodeScraper.searchFosta(query, maxPages = 2)
                             }.orEmpty()
                         } catch (_: Throwable) { emptyList<Show>() }
                     }
                 )
-                val all = jobs.awaitAll().flatten()
-                if (all.isNotEmpty()) {
-                    pushSearchResults(all)
+                val remote = jobs.awaitAll().flatten()
+                if (remote.isNotEmpty()) {
+                    pushSearchResults(remote)
                 }
             } catch (_: Throwable) {
             } finally {
@@ -1503,23 +1511,33 @@ class AppViewModel(private val prefsManager: PrefsManager) : ViewModel() {
         }
     }
 
+
+
     /** Explicit full-catalog fetch — used by BrowseAll "تحميل الكل" button. */
     fun fetchFullCatalogFromSite() {
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
             _catalogLoading.value = true
             try {
                 val all = mutableListOf<Show>()
-                kotlinx.coroutines.coroutineScope {
-                    val jobs = (1..10).map { page ->
-                        async {
-                            try {
-                                withTimeoutOrNull(25_000L) {
-                                    com.agon.app.data.EpisodeScraper.scrapeSeriesPage(page, "e.3cktv.com")
-                                }.orEmpty()
-                            } catch (_: Throwable) { emptyList<Show>() }
+                // Batch through pages 1..51 in groups of 5 to keep memory low
+                for (batchStart in 1..51 step 5) {
+                    val batchEnd = (batchStart + 4).coerceAtMost(51)
+                    kotlinx.coroutines.coroutineScope {
+                        val jobs = (batchStart..batchEnd).map { page ->
+                            async {
+                                try {
+                                    withTimeoutOrNull(30_000L) {
+                                        com.agon.app.data.EpisodeScraper.scrapeSeriesPage(page, "e.3cktv.com")
+                                    }.orEmpty()
+                                } catch (_: Throwable) { emptyList<Show>() }
+                            }
                         }
+                        jobs.awaitAll().forEach { all.addAll(it) }
                     }
-                    jobs.awaitAll().forEach { all.addAll(it) }
+                    // Push partial results every batch so search UI can update live
+                    if (all.isNotEmpty()) {
+                        pushSearchResults(all.toList())
+                    }
                 }
                 if (all.isNotEmpty()) {
                     pushSearchResults(all)

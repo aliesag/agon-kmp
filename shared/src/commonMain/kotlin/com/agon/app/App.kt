@@ -51,6 +51,13 @@ fun App() {
         val scope = rememberCoroutineScope()
 
         val deviceType by vm.deviceType.collectAsStateWithLifecycle()
+        // Kick off full catalog fetch once, in background, after boot finishes
+        LaunchedEffect(Unit) {
+            kotlinx.coroutines.delay(8000) // wait for boot to settle
+            if (!vm.fullCatalogLoaded.value) {
+                vm.fetchFullCatalogFromSite()
+            }
+        }
         val onboardingCompleted by vm.onboardingCompleted.collectAsStateWithLifecycle()
         val skipIntro by vm.skipIntro.collectAsStateWithLifecycle()
         var hasPlayedIntro by remember { mutableStateOf(false) }
@@ -280,6 +287,7 @@ private fun BrandBar(
         modifier = Modifier
             .fillMaxWidth()
             .background(BgColor)
+            .windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.statusBars)
             .padding(horizontal = 16.dp, vertical = 10.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
@@ -391,6 +399,7 @@ private fun TopBarScreen(
         if (!hideBack) {
             Row(
                 modifier = Modifier.fillMaxWidth().background(SurfaceColor)
+                    .windowInsetsPadding(androidx.compose.foundation.layout.WindowInsets.statusBars)
                     .padding(horizontal = 8.dp, vertical = 8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
