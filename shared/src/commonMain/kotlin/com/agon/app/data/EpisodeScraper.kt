@@ -20,14 +20,24 @@ object EpisodeScraper {
     )
 
     private suspend fun fetchDocOrThrow(url: String, referrer: String? = null): Document {
-        val headers = mutableMapOf(
-            "User-Agent" to UA_LIST[0],
-            "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-            "Accept-Language" to "ar-SA,ar;q=0.9,en-US;q=0.8,en;q=0.7",
-            "Cache-Control" to "no-cache"
-        )
-        if (!referrer.isNullOrBlank()) headers["Referer"] = referrer
-        return Ksoup.parse(Http.get(url, headers))
+        var lastException: Exception? = null
+        for (ua in UA_LIST) {
+            try {
+                val headers = mutableMapOf(
+                    "User-Agent" to ua,
+                    "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+                    "Accept-Language" to "ar-SA,ar;q=0.9,en-US;q=0.8,en;q=0.7",
+                    "Cache-Control" to "no-cache"
+                )
+                if (!referrer.isNullOrBlank()) headers["Referer"] = referrer
+                else if (url.contains("3cktv") || url.contains("3iskk")) headers["Referer"] = "https://e.3cktv.com/"
+                else if (url.contains("fosta")) headers["Referer"] = "https://ffosta-tv.quest/"
+                else if (url.contains("alooytv")) headers["Referer"] = "https://ep.alooytv16.xyz/"
+                val html = Http.get(url, headers)
+                if (html.length > 200) return Ksoup.parse(html)
+            } catch (e: Exception) { lastException = e }
+        }
+        throw lastException ?: IllegalStateException("Empty response from $url")
     }
 
     private fun hostOf(url: String): String? = try {

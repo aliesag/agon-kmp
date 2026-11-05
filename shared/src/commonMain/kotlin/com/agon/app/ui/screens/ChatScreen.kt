@@ -91,7 +91,8 @@ fun ChatScreen(
                     )
                 )
             }
-            messages = out.sortedWith(compareBy<ChatMessage> { it.timestamp }.thenBy { it.id })
+            // Firebase push-ids sort lexicographically in chronological order.
+            messages = out.sortedBy { it.id }
             if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1)
         } catch (_: Exception) { /* keep old list */ }
     }
