@@ -1473,47 +1473,66 @@ class AppViewModel(private val prefsManager: PrefsManager) : ViewModel() {
         searchJob = viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
             _isSearchingRemote.value = true
             try {
-                delay(250) // debounce
+                delay(200) // debounce
 
-                val queryVariants = mutableSetOf(query.trim())
-                val normalized = Catalog.normalizeTitle(query)
-                queryVariants.add(normalized)
-                // Common typo/transliteration fixes
-                queryVariants.add(
-                    query.replace("ه", "ة").replace("ا", "أ").replace("ي", "ى").replace("ة", "ه").trim()
+                // Run 3cktv + fosta in parallel, with per-call timeout
+                val jobs = listOf(
+                    async {
+                        try {
+                            withTimeoutOrNull(20_000L) {
+                                com.agon.app.data.EpisodeScraper.search3cktv(query, maxPages = 3)
+                            }.orEmpty()
+                        } catch (_: Throwable) { emptyList<Show>() }
+                    },
+                    async {
+                        try {
+                            withTimeoutOrNull(20_000L) {
+                                com.agon.app.data.EpisodeScraper.searchFosta(query, maxPages = 2)
+                            }.orEmpty()
+                        } catch (_: Throwable) { emptyList<Show>() }
+                    }
                 )
-
-                // Fetch from BOTH sources with per-call timeout; failures are OK.
-                val results = mutableListOf<Show>()
-                for (variant in queryVariants.take(2)) {
-                    try {
-                        val r3ck = withTimeoutOrNull(28_000L) {
-                            com.agon.app.data.EpisodeScraper.search3cktv(variant, maxPages = 2)
-                        }.orEmpty()
-                        if (r3ck.isNotEmpty()) {
-                            results += r3ck
-                            // show partial results immediately
-                            pushSearchResults(results)
-                        }
-                    } catch (_: Throwable) { }
-                    try {
-                        val rFosta = withTimeoutOrNull(28_000L) {
-                            com.agon.app.data.EpisodeScraper.searchFosta(variant, maxPages = 2)
-                        }.orEmpty()
-                        if (rFosta.isNotEmpty()) {
-                            results += rFosta
-                            pushSearchResults(results)
-                        }
-                    } catch (_: Throwable) { }
+                val all = jobs.awaitAll().flatten()
+                if (all.isNotEmpty()) {
+                    pushSearchResults(all)
                 }
-
-                pushSearchResults(results)
             } catch (_: Throwable) {
             } finally {
                 _isSearchingRemote.value = false
             }
         }
     }
+
+    /** Explicit full-catalog fetch — used by BrowseAll "تحميل الكل" button. */
+    fun fetchFullCatalogFromSite() {
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
+            _catalogLoading.value = true
+            try {
+                val all = mutableListOf<Show>()
+                kotlinx.coroutines.coroutineScope {
+                    val jobs = (1..10).map { page ->
+                        async {
+                            try {
+                                withTimeoutOrNull(25_000L) {
+                                    com.agon.app.data.EpisodeScraper.scrapeSeriesPage(page, "e.3cktv.com")
+                                }.orEmpty()
+                            } catch (_: Throwable) { emptyList<Show>() }
+                        }
+                    }
+                    jobs.awaitAll().forEach { all.addAll(it) }
+                }
+                if (all.isNotEmpty()) {
+                    pushSearchResults(all)
+                    _fullCatalogLoaded.value = true
+                }
+            } catch (_: Throwable) {
+            } finally {
+                _catalogLoading.value = false
+            }
+        }
+    }
+
+
 
     private suspend fun pushSearchResults(remoteShows: List<Show>) {
         if (remoteShows.isEmpty()) return

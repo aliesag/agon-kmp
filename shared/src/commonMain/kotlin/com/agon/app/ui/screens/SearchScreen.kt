@@ -1,6 +1,7 @@
 package com.agon.app.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -153,7 +154,33 @@ fun SearchScreen(vm: AppViewModel, onOpenShow: (String) -> Unit) {
             }
         }
 
-        Spacer(Modifier.height(12.dp))
+        Spacer(Modifier.height(8.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = horizontalPadding),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "النتائج: ${results.size}",
+                color = Color(0xFF8C8C94),
+                fontSize = 12.sp
+            )
+            if (query.isEmpty()) {
+                Text(
+                    text = "جلب كل المسلسلات",
+                    color = Color(0xFFE50914),
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .clickable { vm.fetchFullCatalogFromSite() }
+                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                )
+            }
+        }
+
+        Spacer(Modifier.height(8.dp))
 
         when {
             isSearchingRemote || (initialLoading && query.isEmpty()) -> {

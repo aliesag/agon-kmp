@@ -814,65 +814,113 @@ object EpisodeScraper {
         }
     }
 
+    // ============ SEARCH: scrape the series listing (works even if ?s= is blocked) ============
     suspend fun search3cktv(query: String, maxPages: Int = 2): List<Show> {
         if (Catalog.isTashShow(query)) return emptyList()
-        return withContext(Dispatchers.Default) {
-            coroutineScope {
-                val allShows = mutableListOf<Show>()
-                try {
-                    val encodedQuery = encodeQuery(query)
-                    val jobs = (1..maxPages).map { page ->
-                        async {
-                            val pageShows = mutableListOf<Show>()
-                            try {
-                                val url = if (page == 1) "https://e.3cktv.com/?s=$encodedQuery" else "https://e.3cktv.com/page/$page/?s=$encodedQuery"
-                                val doc = fetchDocWithBypass(url)
-                            doc?.select("article.postEp, article.post, .block-post")?.forEach { el ->
-                                    val aTag = el.selectFirst("a") ?: return@forEach
-                                    val title = aTag.attr("title").replace("قصة عشق", "").trim().ifEmpty { el.select(".title").text().replace("قصة عشق", "").trim() }
-                                    val link = aTag.attr("href")
-                                    val imgStyle = aTag.selectFirst(".imgSer")?.attr("style") ?: ""
-                                    var imageUrl = extractPosterFromElement(el)
-                                    if (imageUrl.isBlank()) {
-                                        val urlMatcher = Regex("url\\((.*?)\\)").find(imgStyle)
-                                        if (urlMatcher != null) {
-                                            imageUrl = urlMatcher.groupValues[1].removeSurrounding("'").removeSurrounding("\"")
-                                        }
-                                    }
+        val normQuery = Catalog.normalizeTitle(query)
+        if (normQuery.isBlank()) return emptyList()
 
-                                    if (title.isNotEmpty() && link.isNotEmpty()) {
-                                        val ribbon = aTag.selectFirst(".seasonName span:nth-child(2)")?.text() ?: ""
-                                        pageShows.add(Show(
-                                            id = link.hashCode().toString(),
-                                            title = title,
-                                            year = "2026",
-                                            rating = "تركي",
-                                            imdb = 8.5,
-                                            genres = listOf("مسلسلات تركية"),
-                                            description = "شاهد $title مترجم أونلاين بجودة عالية HD على حكايتنا.",
-                                            poster = imageUrl,
-                                            backdrop = imageUrl,
-                                            duration = "45 دقيقة",
-                                            link = link,
-                                            ribbon = ribbon
-                                        ))
-                                    }
-                                }
-                            } catch (e: Exception) {
-                                e.printStackTrace()
-                            }
-                            pageShows
-                        }
-                    }
-                    val results = jobs.awaitAll()
-                    results.forEach { allShows.addAll(it) }
-                } catch (e: Exception) {
-                    e.printStackTrace()
+        return withContext(Dispatchers.Default) {
+            val allShows = mutableListOf<Show>()
+            // Try the search URL first
+            try {
+                val encodedQuery = encodeQuery(query)
+                val url = "https://e.3cktv.com/?s=$encodedQuery"
+                val doc = fetchDocWithBypass(url)
+                if (doc != null) {
+                    val parsed = parse3cktvListing(doc)
+                    if (parsed.isNotEmpty()) allShows.addAll(parsed)
                 }
-                allShows.distinctBy { it.link }.filterNot { Catalog.isTashShow(it.title, it.link, it.id) }
+            } catch (_: Throwable) { }
+
+            // Fallback: scrape the series listing pages (always returns items)
+            if (allShows.isEmpty()) {
+                try {
+                    coroutineScope {
+                        val jobs = (1..maxPages).map { page ->
+                            async {
+                                try {
+                                    val url = if (page == 1) "https://e.3cktv.com/video/series/"
+                                              else "https://e.3cktv.com/video/series/page/$page/"
+                                    val doc = fetchDocWithBypass(url)
+                                    if (doc != null) parse3cktvListing(doc) else emptyList()
+                                } catch (_: Throwable) { emptyList<Show>() }
+                            }
+                        }
+                        jobs.awaitAll().forEach { allShows.addAll(it) }
+                    }
+                } catch (_: Throwable) { }
             }
+
+            // Filter by query tokens
+            val tokens = normQuery.split(" ").filter { it.length >= 2 }
+            if (tokens.isEmpty()) {
+                return@withContext allShows.distinctBy { it.link }
+                    .filterNot { Catalog.isTashShow(it.title, it.link, it.id) }
+                    .take(60)
+            }
+
+            allShows.distinctBy { it.link }
+                .filterNot { Catalog.isTashShow(it.title, it.link, it.id) }
+                .filter { show ->
+                    val normTitle = Catalog.normalizeTitle(show.title)
+                    tokens.any { normTitle.contains(it) }
+                }
+                .take(60)
         }
     }
+
+    // Shared listing parser for /video/series/ and /?s= pages
+    private fun parse3cktvListing(doc: Document): List<Show> {
+        val out = mutableListOf<Show>()
+        doc.select("article.postEp, article.post, .block-post").forEach { el ->
+            try {
+                val aTag = el.selectFirst("a[href]") ?: return@forEach
+                val rawTitle = aTag.attr("title")
+                    .ifEmpty { aTag.selectFirst(".title")?.text() ?: "" }
+                    .replace("قصة عشق", "")
+                    .trim()
+                if (rawTitle.isBlank()) return@forEach
+
+                var link = aTag.attr("href").trim()
+                if (link.startsWith("/")) link = "https://e.3cktv.com$link"
+                if (!link.startsWith("http")) return@forEach
+
+                // Poster from style: background-image:url(...)
+                var poster = ""
+                val imgEl = aTag.selectFirst(".imgSer")
+                if (imgEl != null) {
+                    val style = imgEl.attr("style")
+                    val m = Regex("url\\((['\"]?)([^)'\"]+)\\1\\)").find(style)
+                    poster = m?.groupValues?.getOrNull(2) ?: imgEl.attr("data-src")
+                }
+                if (poster.isBlank()) {
+                    poster = aTag.selectFirst("img")?.attr("src") ?: ""
+                }
+                poster = TmdbHelper.cleanPosterUrl(poster)
+
+                val ribbon = aTag.selectFirst(".seasonName")?.text()?.trim() ?: ""
+
+                out.add(Show(
+                    id = link.hashCode().toString(),
+                    title = rawTitle,
+                    year = "2026",
+                    rating = "تركي",
+                    imdb = 8.0,
+                    genres = listOf("مسلسلات تركية"),
+                    description = "شاهد $rawTitle مترجم أونلاين بجودة عالية HD على حكايتنا.",
+                    poster = poster,
+                    backdrop = poster,
+                    duration = "45 دقيقة",
+                    link = link,
+                    ribbon = ribbon.ifBlank { null }
+                ))
+            } catch (_: Throwable) { }
+        }
+        return out
+    }
+
+
 
     fun cleanFostaTitle(rawTitle: String): String {
         var t = rawTitle

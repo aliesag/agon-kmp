@@ -108,15 +108,26 @@ fun HakimChatScreen(
         messages = messages + userMsg
         isSending = true
 
+        // Show a live status message while we fetch
+        val statusId = (messages.maxOfOrNull { it.id } ?: 0) + 1
+        messages = messages + HakimMessage(
+            id = statusId,
+            text = "🔍 جاري البحث عن العمل...",
+            isUser = false
+        )
+
         scope.launch {
-            // Before answering: search remote for the mentioned show (matches Android behavior)
             try {
                 vm.performRemoteSearch(text)
-                kotlinx.coroutines.delay(9000) // give remote a moment
+                kotlinx.coroutines.delay(4000)
             } catch (_: Throwable) { }
 
             val currentShows = vm.shows.value
             val matched = try { Catalog.findMatchingShow(text, currentShows) } catch (_: Exception) { null }
+
+            // Remove the status bubble
+            messages = messages.filterNot { it.id == statusId }
+
             val prompt = buildSystemPrompt(matched)
 
             val reply = try {
