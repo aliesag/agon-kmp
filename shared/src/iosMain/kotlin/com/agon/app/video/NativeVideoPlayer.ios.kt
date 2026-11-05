@@ -14,7 +14,7 @@ import platform.AVFoundation.play
 import platform.AVFoundation.pause
 import platform.AVFoundation.seekToTime
 import platform.CoreMedia.CMTimeMake
-import platform.CoreMedia.CMTimeZero
+import platform.CoreMedia.CMTimeMake
 import platform.Foundation.NSBundle
 import platform.Foundation.NSNotificationCenter
 import platform.Foundation.NSOperationQueue
@@ -53,7 +53,7 @@ actual fun NativeVideoPlayer(
             @Suppress("unused")
             fun onEnd(note: platform.Foundation.NSNotification) {
                 if (loop) {
-                    player.seekToTime(CMTimeZero())
+                    player.seekToTime(CMTimeMake(value = 0, timescale = 1))
                     player.play()
                 } else {
                     onFinished()
@@ -62,9 +62,9 @@ actual fun NativeVideoPlayer(
         }.let { it }
         val token = NSNotificationCenter.defaultCenter.addObserverForName(
             name = AVPlayerItemDidPlayToEndTimeNotification,
-            `object` = player.currentItem,
+            `object` = player.currentItem(),
             queue = NSOperationQueue.mainQueue,
-            usingBlock = { _ -> if (loop) { player.seekToTime(CMTimeZero()); player.play() } else onFinished() }
+            usingBlock = { _ -> if (loop) { player.seekToTime(CMTimeMake(value = 0, timescale = 1)); player.play() } else onFinished() }
         )
         if (autoPlay) player.play()
         onDispose {
