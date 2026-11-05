@@ -67,21 +67,14 @@ fun MatchesScreen(
     val liveCount by vm.liveMatchesCount.collectAsStateWithLifecycle()
     val context = androidx.compose.ui.platform.LocalContext.current
 
+    var toastMessage by remember { mutableStateOf<String?>(null) }
     val handleMatchClick: (MatchItem) -> Unit = { match ->
         if (match.status == MatchStatus.LIVE && match.day == MatchDay.TODAY) {
             onOpenMatch(match.id)
         } else if (match.status == MatchStatus.NOT_STARTED || match.day == MatchDay.TOMORROW) {
-            android.widget.Toast.makeText(
-                context,
-                "المباراة لم تبدأ بعد ⏳ سيتوفر البث المباشر فور انطلاق صافرة البداية (${match.matchTime})",
-                android.widget.Toast.LENGTH_SHORT
-            ).show()
+            toastMessage = "المباراة لم تبدأ بعد ⏳ سيتوفر البث المباشر فور انطلاق صافرة البداية (${match.matchTime})"
         } else {
-            android.widget.Toast.makeText(
-                context,
-                "المباراة انتهت ⚽ البث المباشر متاح فقط للمباريات المباشرة الآن",
-                android.widget.Toast.LENGTH_SHORT
-            ).show()
+            toastMessage = "المباراة انتهت ⚽ البث المباشر متاح فقط للمباريات المباشرة الآن"
         }
     }
 
