@@ -79,7 +79,7 @@ object TmdbHelper {
                     i += 3
                 }
                 else -> {
-                    val bytes = ch.toString().toByteArray(Charsets.UTF_8)
+                    val bytes = ch.toString().encodeToByteArray()
                     for (b in bytes) {
                         val v = b.toInt() and 0xFF
                         sb.append('%').append(HEX[v shr 4]).append(HEX[v and 0xF])
