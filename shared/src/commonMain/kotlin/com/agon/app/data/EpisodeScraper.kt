@@ -174,10 +174,11 @@ object EpisodeScraper {
                 "User-Agent" to UA_LIST[0],
                 "Referer" to "https://e.3cktv.com/"
             ))
-            "size=${html.length}
-first200=${html.take(200)}"
+            val size = html.length
+            val head = html.take(200)
+            "size=" + size + " first200=" + head
         } catch (t: Throwable) {
-            "ERROR: ${t.message}"
+            "ERROR: " + (t.message ?: "unknown")
         }
     }
 
