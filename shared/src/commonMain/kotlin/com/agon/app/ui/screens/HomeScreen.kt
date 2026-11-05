@@ -85,8 +85,8 @@ fun HomeScreen(
     val categories by vm.categories.collectAsStateWithLifecycle()
     val deviceType by vm.deviceType.collectAsStateWithLifecycle()
     val isTv = deviceType == "tv"
-    // Hero: 16:9 responsive (was 540dp fixed — too tall on iPhone)
-    val heroHeight = if (isTv) 380.dp else (androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp * 0.56f).dp
+    // Hero height: 16:9 responsive via BoxWithConstraints (CMP-safe)
+    var heroHeight by remember { mutableStateOf(if (isTv) 380.dp else 220.dp) }
     val featuredShows = (categories.firstOrNull()?.shows?.take(5) ?: emptyList()).ifEmpty { listOfNotNull(Catalog.featured) }
     val lastWatchedShow by vm.lastWatchedShow.collectAsStateWithLifecycle()
     val lastWatchedEpisode by vm.lastWatchedEpisode.collectAsStateWithLifecycle()
@@ -151,7 +151,11 @@ fun HomeScreen(
             }
         }
     } else {
-        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
+        androidx.compose.foundation.layout.BoxWithConstraints(modifier = Modifier.fillMaxSize()) {
+            val screenW = maxWidth
+            val computedHero = if (isTv) 380.dp else (screenW * 0.56f).coerceAtMost(320.dp)
+            if (heroHeight != computedHero) heroHeight = computedHero
+            Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.TopCenter) {
             LazyColumn(
                 contentPadding = PaddingValues(bottom = 24.dp),
                 verticalArrangement = Arrangement.spacedBy(20.dp),
@@ -364,6 +368,7 @@ fun HomeScreen(
             }
         }
     }
+        }
 }
 
 @Composable
