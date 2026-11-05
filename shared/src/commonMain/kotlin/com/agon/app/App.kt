@@ -1,6 +1,8 @@
 package com.agon.app
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -98,8 +100,23 @@ private fun MainContent(
     val bottomRoutes = setOf("home", "matches", "mylist", "chat", "profile")
     val showBottomBar = currentRoute in bottomRoutes
 
+    var showReportDialog by remember { mutableStateOf(false) }
+    if (showReportDialog) {
+        com.agon.app.ui.components.ReportIssueDialog(
+            deviceType = vm.deviceType.value.ifBlank { "mobile" },
+            onDismiss = { showReportDialog = false }
+        )
+    }
+
     Surface(modifier = Modifier.fillMaxSize(), color = BgColor) {
         Column(modifier = Modifier.fillMaxSize()) {
+            if (currentRoute == "home") {
+                BrandBar(
+                    onSearchClick = { nav.navigate("search") },
+                    onHakimClick = { nav.navigate("hakim") },
+                    onReportClick = { showReportDialog = true }
+                )
+            }
             Box(modifier = Modifier.weight(1f)) {
                 NavHost(navController = nav, startDestination = "home") {
                     composable("home") {
@@ -206,6 +223,117 @@ private fun MainContent(
             }
             if (showBottomBar) {
                 BottomNav(nav = nav, currentRoute = currentRoute)
+            }
+        }
+    }
+}
+
+@Composable
+private fun BrandBar(
+    onSearchClick: () -> Unit,
+    onHakimClick: () -> Unit,
+    onReportClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(BgColor)
+            .padding(horizontal = 16.dp, vertical = 10.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Logo
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier.size(32.dp).clip(RoundedCornerShape(8.dp))
+                    .background(NetflixRed),
+                contentAlignment = Alignment.Center
+            ) {
+                Text("ح", color = Color.White, fontWeight = FontWeight.Black, fontSize = 18.sp)
+            }
+        }
+
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Hakim block
+            Row(
+                modifier = Modifier.clickable(onClick = onHakimClick),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(horizontalAlignment = Alignment.End) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(Color(0xFF4A1515))
+                                .padding(horizontal = 4.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                "مستشار
+الدراما",
+                                color = Color(0xFFFF2D3A),
+                                fontSize = 7.sp,
+                                fontWeight = FontWeight.Bold,
+                                textAlign = TextAlign.Center,
+                                lineHeight = 9.sp
+                            )
+                        }
+                        Spacer(Modifier.width(4.dp))
+                        Text(
+                            "حكيم الذكي",
+                            color = Color.White,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Black
+                        )
+                    }
+                }
+                Spacer(Modifier.width(8.dp))
+                Box(
+                    modifier = Modifier.size(38.dp).clip(CircleShape)
+                        .background(
+                            androidx.compose.ui.graphics.Brush.linearGradient(
+                                listOf(Color(0xFFE91E63), Color(0xFF9C27B0))
+                            )
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Filled.AutoFixHigh,
+                        contentDescription = "حكيم",
+                        tint = Color.White,
+                        modifier = Modifier.size(20.dp)
+                    )
+                    Box(
+                        modifier = Modifier.size(10.dp)
+                            .align(Alignment.BottomEnd)
+                            .offset(x = (-2).dp, y = (-2).dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF00E676))
+                            .border(1.5.dp, BgColor, CircleShape)
+                    )
+                }
+            }
+
+            // Search
+            Box(
+                modifier = Modifier.size(38.dp).clip(CircleShape)
+                    .background(Color(0xFF1E1E1E))
+                    .clickable(onClick = onSearchClick),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Filled.Search, contentDescription = "بحث", tint = Color.White, modifier = Modifier.size(19.dp))
+            }
+
+            // Report
+            Box(
+                modifier = Modifier.size(38.dp).clip(CircleShape)
+                    .background(Color(0xFF1E1E1E))
+                    .clickable(onClick = onReportClick),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(Icons.Filled.BugReport, contentDescription = "بلاغ", tint = NetflixRed, modifier = Modifier.size(19.dp))
             }
         }
     }
