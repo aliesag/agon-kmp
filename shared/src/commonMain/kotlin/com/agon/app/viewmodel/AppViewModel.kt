@@ -61,7 +61,10 @@ class AppViewModel(private val prefsManager: PrefsManager) : ViewModel() {
 
     fun setSkipIntro(skip: Boolean) {
         viewModelScope.launch {
+            try {
             prefsManager.setSkipIntro(skip)
+        
+            } catch (t: Throwable) { println("VANTA_VM_LAUNCH_ERR: ${t.message}") }
         }
     }
 
@@ -93,11 +96,7 @@ class AppViewModel(private val prefsManager: PrefsManager) : ViewModel() {
     private val _myList = MutableStateFlow<Set<String>>(emptySet())
     val myList: StateFlow<Set<String>> = _myList.asStateFlow()
 
-    private val _continueWatching = MutableStateFlow(
-        listOf(
-            Progress("qrmzi_2", 0.12f, "48 دقيقة متبقية"),
-        )
-    )
+    private val _continueWatching = MutableStateFlow<List<Progress>>(emptyList())
     val continueWatching: StateFlow<List<Progress>> = _continueWatching.asStateFlow()
 
     private val _query = MutableStateFlow("")
@@ -136,10 +135,10 @@ class AppViewModel(private val prefsManager: PrefsManager) : ViewModel() {
     private val _isInitialized = MutableStateFlow(true)
     val isInitialized: StateFlow<Boolean> = _isInitialized.asStateFlow()
 
-    private val _downloads = MutableStateFlow<Set<String>>(setOf("qrmzi_0"))
+    private val _downloads = MutableStateFlow<Set<String>>(emptySet())
     val downloads: StateFlow<Set<String>> = _downloads.asStateFlow()
 
-    private val _watchHistory = MutableStateFlow<List<String>>(listOf("qrmzi_0", "qrmzi_2"))
+    private val _watchHistory = MutableStateFlow<List<String>>(emptyList())
     val watchHistory: StateFlow<List<String>> = _watchHistory.asStateFlow()
 
     private val _appLanguage = MutableStateFlow("العربية")
@@ -202,46 +201,83 @@ class AppViewModel(private val prefsManager: PrefsManager) : ViewModel() {
 
     private fun observePrefs() {
         viewModelScope.launch {
+            try {
             prefsManager.deviceType.collectLatest { _deviceType.value = it }
+        
+            } catch (t: Throwable) { println("VANTA_VM_LAUNCH_ERR: ${t.message}") }
         }
         viewModelScope.launch {
+            try {
             prefsManager.autoUpdate.collectLatest { _autoUpdate.value = it }
+        
+            } catch (t: Throwable) { println("VANTA_VM_LAUNCH_ERR: ${t.message}") }
         }
         viewModelScope.launch {
+            try {
             prefsManager.showContinueWatching.collectLatest { _showContinueWatching.value = it }
+        
+            } catch (t: Throwable) { println("VANTA_VM_LAUNCH_ERR: ${t.message}") }
         }
         viewModelScope.launch {
+            try {
             prefsManager.appLanguage.collectLatest { _appLanguage.value = if (it == "ar") "العربية" else "English" }
+        
+            } catch (t: Throwable) { println("VANTA_VM_LAUNCH_ERR: ${t.message}") }
         }
         viewModelScope.launch {
+            try {
             prefsManager.playerAutoHide.collectLatest { _playerAutoHide.value = it }
+        
+            } catch (t: Throwable) { println("VANTA_VM_LAUNCH_ERR: ${t.message}") }
         }
         viewModelScope.launch {
+            try {
             prefsManager.playerHideSeconds.collectLatest { _playerHideSeconds.value = it }
+        
+            } catch (t: Throwable) { println("VANTA_VM_LAUNCH_ERR: ${t.message}") }
         }
         viewModelScope.launch {
+            try {
             prefsManager.profileAvatar.collectLatest { _profileAvatar.value = it }
+        
+            } catch (t: Throwable) { println("VANTA_VM_LAUNCH_ERR: ${t.message}") }
         }
         viewModelScope.launch {
+            try {
             prefsManager.profileName.collectLatest { _profileName.value = it }
+        
+            } catch (t: Throwable) { println("VANTA_VM_LAUNCH_ERR: ${t.message}") }
         }
         viewModelScope.launch {
+            try {
             prefsManager.userEmail.collectLatest { _userEmail.value = it }
+        
+            } catch (t: Throwable) { println("VANTA_VM_LAUNCH_ERR: ${t.message}") }
         }
         viewModelScope.launch {
+            try {
             prefsManager.profileAge.collectLatest { _profileAge.value = it }
+        
+            } catch (t: Throwable) { println("VANTA_VM_LAUNCH_ERR: ${t.message}") }
         }
         viewModelScope.launch {
+            try {
             prefsManager.profileColor.collectLatest { _profileColor.value = it }
+        
+            } catch (t: Throwable) { println("VANTA_VM_LAUNCH_ERR: ${t.message}") }
         }
         viewModelScope.launch {
+            try {
             prefsManager.onboardingCompleted.collectLatest { 
                 _onboardingCompleted.value = it
                 _isInitialized.value = true
             }
+        
+            } catch (t: Throwable) { println("VANTA_VM_LAUNCH_ERR: ${t.message}") }
         }
         
         viewModelScope.launch {
+            try {
             kotlinx.coroutines.flow.combine(
                 prefsManager.lastShowId,
                 prefsManager.lastEpisodeId,
@@ -256,17 +292,23 @@ class AppViewModel(private val prefsManager: PrefsManager) : ViewModel() {
                 _lastWatchedShow.value = show
                 _lastWatchedEpisode.value = episode ?: if (epId != null) Episode(id = epId, title = "جاري التحميل...", episodeNum = "?", poster = "", link = "") else null
             }
+        
+            } catch (t: Throwable) { println("VANTA_VM_LAUNCH_ERR: ${t.message}") }
         }
     }
 
     fun saveProgress(showId: String, episodeId: String) {
         viewModelScope.launch {
+            try {
             prefsManager.saveLastWatched(showId, episodeId)
+        
+            } catch (t: Throwable) { println("VANTA_VM_LAUNCH_ERR: ${t.message}") }
         }
     }
 
     private fun checkForUpdates() {
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
+            try {
             try {
                 val url = "https://raw.githubusercontent.com/mrpubg252-cmd/esp-config/refs/heads/main/update.json"
                 val jsonStr = (com.agon.app.Http.get(url) ?: "")
@@ -295,43 +337,66 @@ class AppViewModel(private val prefsManager: PrefsManager) : ViewModel() {
             } catch (e: Exception) {
                 e.printStackTrace()
             }
+        
+            } catch (t: Throwable) { println("VANTA_VM_LAUNCH_ERR: ${t.message}") }
         }
     }
 
     fun dismissUpdate(versionCode: Int) {
         viewModelScope.launch {
+            try {
             prefsManager.setInstalledVersionCode(versionCode)
             _updateInfo.value = null
+        
+            } catch (t: Throwable) { println("VANTA_VM_LAUNCH_ERR: ${t.message}") }
         }
     }
 
     fun setDeviceType(type: String) {
-        viewModelScope.launch { prefsManager.setDeviceType(type) }
+        viewModelScope.launch {
+            try { prefsManager.setDeviceType(type) 
+            } catch (t: Throwable) { println("VANTA_VM_LAUNCH_ERR: ${t.message}") }
+        }
     }
 
     fun setAutoUpdate(enabled: Boolean) {
-        viewModelScope.launch { prefsManager.setAutoUpdate(enabled) }
+        viewModelScope.launch {
+            try { prefsManager.setAutoUpdate(enabled) 
+            } catch (t: Throwable) { println("VANTA_VM_LAUNCH_ERR: ${t.message}") }
+        }
     }
 
     fun setShowContinueWatching(show: Boolean) {
-        viewModelScope.launch { prefsManager.setShowContinueWatching(show) }
+        viewModelScope.launch {
+            try { prefsManager.setShowContinueWatching(show) 
+            } catch (t: Throwable) { println("VANTA_VM_LAUNCH_ERR: ${t.message}") }
+        }
     }
 
     fun setLanguage(lang: String) {
-        viewModelScope.launch { 
+        viewModelScope.launch {
+            try { 
             prefsManager.setLanguage(if (lang == "العربية") "ar" else "en")
+        
+            } catch (t: Throwable) { println("VANTA_VM_LAUNCH_ERR: ${t.message}") }
         }
     }
 
     fun setPlayerAutoHide(enabled: Boolean) {
         viewModelScope.launch {
+            try {
             prefsManager.setPlayerAutoHide(enabled)
+        
+            } catch (t: Throwable) { println("VANTA_VM_LAUNCH_ERR: ${t.message}") }
         }
     }
 
     fun setPlayerHideSeconds(seconds: Int) {
         viewModelScope.launch {
+            try {
             prefsManager.setPlayerHideSeconds(seconds)
+        
+            } catch (t: Throwable) { println("VANTA_VM_LAUNCH_ERR: ${t.message}") }
         }
     }
 
@@ -349,6 +414,7 @@ class AppViewModel(private val prefsManager: PrefsManager) : ViewModel() {
         // Sync like count to Firebase Realtime Database
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
             try {
+            try {
                 val patchUrl = "https://chat-516a8-default-rtdb.firebaseio.com/shorts_v1/$shortId.json"
                 val json = org.json.JSONObject().apply {
                     put("likesCount", newLikesCount)
@@ -357,6 +423,8 @@ class AppViewModel(private val prefsManager: PrefsManager) : ViewModel() {
             } catch (e: Exception) {
                 e.printStackTrace()
             }
+        
+            } catch (t: Throwable) { println("VANTA_VM_LAUNCH_ERR: ${t.message}") }
         }
     }
 
@@ -378,6 +446,7 @@ class AppViewModel(private val prefsManager: PrefsManager) : ViewModel() {
         }
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
             try {
+            try {
                 val patchUrl = "https://chat-516a8-default-rtdb.firebaseio.com/shorts_v1/$shortId.json"
                 val patchJson = org.json.JSONObject().apply {
                     put("sharesCount", updatedSharesCount)
@@ -386,6 +455,8 @@ class AppViewModel(private val prefsManager: PrefsManager) : ViewModel() {
             } catch (e: Exception) {
                 e.printStackTrace()
             }
+        
+            } catch (t: Throwable) { println("VANTA_VM_LAUNCH_ERR: ${t.message}") }
         }
     }
 
@@ -416,6 +487,7 @@ class AppViewModel(private val prefsManager: PrefsManager) : ViewModel() {
         // Sync comment to Firebase Realtime Database
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
             try {
+            try {
                 val commentUrl = "https://chat-516a8-default-rtdb.firebaseio.com/shorts_v1/$shortId/comments/$commentId.json"
                 val commentJson = org.json.JSONObject().apply {
                     put("id", commentId)
@@ -436,11 +508,14 @@ class AppViewModel(private val prefsManager: PrefsManager) : ViewModel() {
             } catch (e: Exception) {
                 e.printStackTrace()
             }
+        
+            } catch (t: Throwable) { println("VANTA_VM_LAUNCH_ERR: ${t.message}") }
         }
     }
 
     fun uploadShortToFirebase(shortItem: ShortItem) {
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
+            try {
             try {
                 val firebaseDbUrl = "https://chat-516a8-default-rtdb.firebaseio.com/shorts_v1/${shortItem.id}.json"
                 val jsonObj = org.json.JSONObject().apply {
@@ -462,6 +537,8 @@ class AppViewModel(private val prefsManager: PrefsManager) : ViewModel() {
             } catch (e: Exception) {
                 e.printStackTrace()
             }
+        
+            } catch (t: Throwable) { println("VANTA_VM_LAUNCH_ERR: ${t.message}") }
         }
     }
 
@@ -550,6 +627,7 @@ class AppViewModel(private val prefsManager: PrefsManager) : ViewModel() {
 
     fun fetchShortsFromRemote() {
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
+            try {
             try {
                 val firebaseDbUrl = "https://chat-516a8-default-rtdb.firebaseio.com/shorts_v1.json"
                 val bodyString = com.agon.app.Http.get(firebaseDbUrl)
@@ -650,6 +728,8 @@ class AppViewModel(private val prefsManager: PrefsManager) : ViewModel() {
                     _shortsList.value = getDefaultSampleShorts()
                 }
             }
+        
+            } catch (t: Throwable) { println("VANTA_VM_LAUNCH_ERR: ${t.message}") }
         }
     }
 
@@ -692,6 +772,7 @@ class AppViewModel(private val prefsManager: PrefsManager) : ViewModel() {
 
     private fun loadHomeScrapedData() {
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
+            try {
             try {
                 val currentShows = mutableListOf<Show>()
                 currentShows.addAll(Catalog.all.filterNot { isAlooytvSeries(it) || Catalog.isTashShow(it.title, it.link, it.id) })
@@ -879,6 +960,8 @@ class AppViewModel(private val prefsManager: PrefsManager) : ViewModel() {
             } catch (e: Exception) {
                 e.printStackTrace()
             }
+        
+            } catch (t: Throwable) { println("VANTA_VM_LAUNCH_ERR: ${t.message}") }
         }
     }
 
@@ -965,6 +1048,7 @@ class AppViewModel(private val prefsManager: PrefsManager) : ViewModel() {
         _selectedServer.value = null
         _isLoadingVideo.value = true
         videoLoadJob = viewModelScope.launch {
+            try {
             val parsedServers = EpisodeScraper.getServersForEpisode(episode.link)
             if (parsedServers.isNotEmpty()) {
                 _servers.value = parsedServers
@@ -987,6 +1071,8 @@ class AppViewModel(private val prefsManager: PrefsManager) : ViewModel() {
                 _videoUrl.value = effective
             }
             _isLoadingVideo.value = false
+        
+            } catch (t: Throwable) { println("VANTA_VM_LAUNCH_ERR: ${t.message}") }
         }
     }
 
@@ -996,9 +1082,12 @@ class AppViewModel(private val prefsManager: PrefsManager) : ViewModel() {
         _selectedServer.value = server
         _isLoadingVideo.value = true
         videoLoadJob = viewModelScope.launch {
+            try {
             val resolved = EpisodeScraper.resolveServerDirectUrl(server.url, episodeLink) ?: server.url
             _videoUrl.value = resolved
             _isLoadingVideo.value = false
+        
+            } catch (t: Throwable) { println("VANTA_VM_LAUNCH_ERR: ${t.message}") }
         }
     }
 
@@ -1019,6 +1108,7 @@ class AppViewModel(private val prefsManager: PrefsManager) : ViewModel() {
         if (existing != null && !hasFallback) return 
         
         viewModelScope.launch {
+            try {
             _isLoadingEpisodes.value = true
             var list = EpisodeScraper.getEpisodesForShow(show.link)
             if (list.isEmpty()) {
@@ -1080,12 +1170,15 @@ class AppViewModel(private val prefsManager: PrefsManager) : ViewModel() {
             }
             _showEpisodes.value = _showEpisodes.value + (show.id to list)
             _isLoadingEpisodes.value = false
+        
+            } catch (t: Throwable) { println("VANTA_VM_LAUNCH_ERR: ${t.message}") }
         }
     }
 
     private fun fetchEpisodeImages(showId: String, tmdbId: Int, mediaType: String) {
         if (mediaType != "tv") return
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
+            try {
             try {
                 val apiKey = if (com.agon.app.BuildConfig.TMDB_API_KEY.isEmpty() || com.agon.app.BuildConfig.TMDB_API_KEY == "YOUR_TMDB_API_KEY") {
                     "5afaeea7216a76d8c0600ecf217f6427"
@@ -1132,6 +1225,8 @@ class AppViewModel(private val prefsManager: PrefsManager) : ViewModel() {
             } catch (e: Exception) {
                 e.printStackTrace()
             }
+        
+            } catch (t: Throwable) { println("VANTA_VM_LAUNCH_ERR: ${t.message}") }
         }
     }
 
@@ -1145,6 +1240,7 @@ class AppViewModel(private val prefsManager: PrefsManager) : ViewModel() {
         val show = _shows.value.firstOrNull { it.id == showId } ?: return
         if (show.castMembers.isNotEmpty()) return
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
+            try {
             val updated = fetchTmdbDetailsForShow(show) ?: return@launch
             kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
                 val targetTitle = Catalog.cleanSeriesTitle(show.title)
@@ -1157,6 +1253,8 @@ class AppViewModel(private val prefsManager: PrefsManager) : ViewModel() {
                 _shows.value = updatedShows
                 rebuildCategories(updatedShows)
             }
+        
+            } catch (t: Throwable) { println("VANTA_VM_LAUNCH_ERR: ${t.message}") }
         }
     }
 
@@ -1309,51 +1407,72 @@ class AppViewModel(private val prefsManager: PrefsManager) : ViewModel() {
     
     fun setProfileInfo(name: String, color: Int, avatar: String) {
         viewModelScope.launch {
+            try {
             prefsManager.setProfileInfo(name, color, avatar)
+        
+            } catch (t: Throwable) { println("VANTA_VM_LAUNCH_ERR: ${t.message}") }
         }
     }
 
     fun setUserAccount(username: String, email: String) {
         viewModelScope.launch {
+            try {
             prefsManager.setUserAccount(username.trim(), email.trim())
+        
+            } catch (t: Throwable) { println("VANTA_VM_LAUNCH_ERR: ${t.message}") }
         }
     }
 
     fun setFullUserProfile(username: String, email: String, avatar: String) {
         viewModelScope.launch {
+            try {
             prefsManager.setUserAccount(username.trim(), email.trim())
             prefsManager.setProfileInfo(username.trim(), _profileColor.value, avatar)
             _profileName.value = username.trim()
             _userEmail.value = email.trim()
             _profileAvatar.value = avatar
+        
+            } catch (t: Throwable) { println("VANTA_VM_LAUNCH_ERR: ${t.message}") }
         }
     }
 
     fun setProfileAge(age: String) {
         viewModelScope.launch {
+            try {
             prefsManager.setProfileAge(age)
+        
+            } catch (t: Throwable) { println("VANTA_VM_LAUNCH_ERR: ${t.message}") }
         }
     }
 
     fun completeOnboarding(name: String, age: String, avatar: String) {
         val finalName = if (name.isNotBlank()) name else "ضيف"
         viewModelScope.launch {
+            try {
             prefsManager.setProfileInfo(finalName, _profileColor.value, avatar)
             prefsManager.setProfileAge(age)
             prefsManager.setOnboardingCompleted(true)
+        
+            } catch (t: Throwable) { println("VANTA_VM_LAUNCH_ERR: ${t.message}") }
         }
     }
 
     fun setOnboardingCompleted(completed: Boolean) {
         viewModelScope.launch {
+            try {
             prefsManager.setOnboardingCompleted(completed)
+        
+            } catch (t: Throwable) { println("VANTA_VM_LAUNCH_ERR: ${t.message}") }
         }
         _onboardingCompleted.value = completed
     }
 
     fun setProfileAvatar(avatar: String) {
         viewModelScope.launch {
+            try {
             prefsManager.setProfileAvatar(avatar)
+        
+            } catch (t: Throwable) { println("VANTA_VM_LAUNCH_ERR: ${t.message}") }
         }
     }
 
@@ -1398,6 +1517,7 @@ class AppViewModel(private val prefsManager: PrefsManager) : ViewModel() {
         if (query.isBlank() || Catalog.isTashShow(query)) return
         searchJob?.cancel()
         searchJob = viewModelScope.launch {
+            try {
             _isSearchingRemote.value = true
             try {
                 delay(400) // debounce
@@ -1459,6 +1579,8 @@ class AppViewModel(private val prefsManager: PrefsManager) : ViewModel() {
             } finally {
                 _isSearchingRemote.value = false
             }
+        
+            } catch (t: Throwable) { println("VANTA_VM_LAUNCH_ERR: ${t.message}") }
         }
     }
 
