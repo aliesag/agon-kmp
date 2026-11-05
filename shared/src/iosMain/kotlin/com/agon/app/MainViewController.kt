@@ -11,7 +11,7 @@ import coil3.ImageLoader
 import coil3.PlatformContext
 import coil3.SingletonImageLoader
 import coil3.memory.MemoryCache
-import platform.Foundation.NSSetUncaughtExceptionHandler
+import kotlin.experimental.ExperimentalNativeApi
 import platform.UIKit.UIViewController
 
 private class IOSViewModelStoreOwner : ViewModelStoreOwner {
@@ -24,34 +24,21 @@ private fun WithViewModelStoreOwner(content: @Composable () -> Unit) {
     CompositionLocalProvider(LocalViewModelStoreOwner provides owner) { content() }
 }
 
-private fun installCrashLogger() {
-    // Native Obj-C exceptions
-    NSSetUncaughtExceptionHandler { ex ->
-        if (ex != null) {
-            println("VANTA_CRASH NSException: name=${ex.name} reason=${ex.reason}")
-            ex.callStackSymbols.forEach { println("  at $it") }
-        }
-    }
-    // Kotlin unhandled coroutine exceptions
-    kotlinx.coroutines.setUnhandledExceptionHook?.let { hook ->
-        try { hook { t -> println("VANTA_CRASH Kotlin: ${t.message}\n${t.stackTraceToString()}") } } catch (_: Throwable) {}
-    }
-}
-
 private fun configureCoil() {
-    SingletonImageLoader.setSafe { ctx: PlatformContext ->
-        ImageLoader.Builder(ctx)
-            .memoryCache {
-                MemoryCache.Builder()
-                    .maxSizePercent(ctx, 0.10)   // 10% of RAM — very conservative for iOS
-                    .build()
-            }
-            .build()
-    }
+    try {
+        SingletonImageLoader.setSafe { ctx: PlatformContext ->
+            ImageLoader.Builder(ctx)
+                .memoryCache {
+                    MemoryCache.Builder()
+                        .maxSizePercent(ctx, 0.10)
+                        .build()
+                }
+                .build()
+        }
+    } catch (_: Throwable) { }
 }
 
-fun MainViewController() = run {
-    installCrashLogger()
+fun MainViewController(): UIViewController {
     configureCoil()
-    ComposeUIViewController { WithViewModelStoreOwner { App() } }
+    return ComposeUIViewController { WithViewModelStoreOwner { App() } }
 }
