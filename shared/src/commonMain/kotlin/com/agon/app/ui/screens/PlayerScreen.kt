@@ -367,6 +367,25 @@ private fun VideoPlayerSection(
             .background(Color.Black),
         contentAlignment = Alignment.Center
     ) {
+        // Floating back button — always available
+        Box(
+            modifier = Modifier
+                .align(Alignment.TopStart)
+                .padding(12.dp)
+                .size(40.dp)
+                .clip(RoundedCornerShape(50))
+                .background(Color.Black.copy(alpha = 0.6f))
+                .clickable { onBack() },
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                Icons.AutoMirrored.Filled.ArrowBack,
+                contentDescription = "رجوع",
+                tint = Color.White,
+                modifier = Modifier.size(22.dp)
+            )
+        }
+
         if (!isLoadingVideo && activeUrl != null) {
             // Native playback for direct streams (mp4/m3u8/webm). Embeds stay in WebView.
             val direct = activeUrl.lowercase().let {

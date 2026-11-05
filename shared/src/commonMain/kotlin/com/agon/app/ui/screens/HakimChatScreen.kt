@@ -125,11 +125,18 @@ fun HakimChatScreen(
                 .replace("\\\"", "\"")
                 .trim()
 
+            // Fallback: if direct match failed, try finding any show title mentioned in the reply
+            val finalMatched = matched ?: try {
+                shows.firstOrNull { s ->
+                    s.title.length >= 4 && cleaned.contains(s.title.substring(0, minOf(8, s.title.length)), ignoreCase = true)
+                }
+            } catch (_: Throwable) { null }
+
             val aiMsg = HakimMessage(
                 id = (messages.maxOfOrNull { it.id } ?: 0) + 1,
                 text = cleaned,
                 isUser = false,
-                linkedShow = matched
+                linkedShow = finalMatched
             )
             messages = messages + aiMsg
             isSending = false
