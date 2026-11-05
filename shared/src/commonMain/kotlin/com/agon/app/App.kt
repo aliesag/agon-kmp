@@ -175,8 +175,16 @@ private fun MainContent(
                             onNavigateToDownloads = { nav.navigate("downloaded_episodes") }
                         )
                     }
-                    composable("player/{id}/{episodeId}") {
-                        ComingSoonScreen("المشغّل", "مشغّل الفيديو الرئيسي عبر AVPlayer في المرحلة القادمة") { nav.popBackStack() }
+                    composable("player/{id}/{episodeId}") { entry ->
+                        val id = entry.arguments?.getString("id").orEmpty()
+                        val epId = entry.arguments?.getString("episodeId")
+                        PlayerScreen(
+                            showId = id,
+                            episodeId = epId,
+                            vm = vm,
+                            onBack = { nav.popBackStack() },
+                            onOpenShow = { sid -> nav.navigate("detail/$sid") }
+                        )
                     }
                     composable("browse_all") {
                         BrowseAllScreen(
