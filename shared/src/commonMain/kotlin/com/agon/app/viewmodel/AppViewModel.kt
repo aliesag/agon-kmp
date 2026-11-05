@@ -4,6 +4,7 @@ import androidx.lifecycle.ViewModel
 import com.agon.app.data.FirebaseHttp
 import androidx.lifecycle.viewModelScope
 import com.agon.app.data.*
+import kotlinx.datetime.Clock
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -391,7 +392,7 @@ class AppViewModel(private val prefsManager: PrefsManager) : ViewModel() {
     fun addCommentToShort(shortId: String, text: String, linkedShowId: String? = null) {
         if (text.isBlank() && linkedShowId.isNullOrEmpty()) return
         val currentProfile = _profileName.value.ifEmpty { "مستخدم" }
-        val commentId = "comment_${System.currentTimeMillis()}"
+        val commentId = "comment_${Clock.System.now().toEpochMilliseconds()}"
         val newComment = ShortComment(
             id = commentId,
             user = currentProfile,
@@ -423,7 +424,7 @@ class AppViewModel(private val prefsManager: PrefsManager) : ViewModel() {
                     put("text", text.trim())
                     if (linkedShowId != null) put("linkedShowId", linkedShowId)
                     put("timeAgo", "الآن")
-                    put("createdAt", System.currentTimeMillis())
+                    put("createdAt", Clock.System.now().toEpochMilliseconds())
                 }
                 FirebaseHttp.put(commentUrl, commentJson.toString())
 
@@ -455,7 +456,7 @@ class AppViewModel(private val prefsManager: PrefsManager) : ViewModel() {
                     put("likesCount", shortItem.likesCount)
                     put("commentsCount", shortItem.commentsCount)
                     put("sharesCount", shortItem.sharesCount)
-                    put("createdAt", System.currentTimeMillis())
+                    put("createdAt", Clock.System.now().toEpochMilliseconds())
                 }
                 FirebaseHttp.put(firebaseDbUrl, jsonObj.toString())
             } catch (e: Exception) {
@@ -467,7 +468,7 @@ class AppViewModel(private val prefsManager: PrefsManager) : ViewModel() {
     fun addShort(title: String, description: String, videoUrl: String, linkedShowId: String? = null) {
         if (videoUrl.isBlank()) return
         val newShort = ShortItem(
-            id = "short_${System.currentTimeMillis()}",
+            id = "short_${Clock.System.now().toEpochMilliseconds()}",
             title = title.ifEmpty { "شورتس جديد" },
             description = description,
             videoUrl = videoUrl,
@@ -552,100 +553,96 @@ class AppViewModel(private val prefsManager: PrefsManager) : ViewModel() {
             try {
                 val firebaseDbUrl = "https://chat-516a8-default-rtdb.firebaseio.com/shorts_v1.json"
                 val bodyString = com.agon.app.Http.get(firebaseDbUrl)
-                if (true) {
-                        if (!bodyString.isNullOrBlank() && bodyString != "null") {
-                            val jsonObject = org.json.JSONObject(bodyString)
-                            val keys = jsonObject.keys()
-                            val firebaseShorts = mutableListOf<ShortItem>()
+                if (!bodyString.isNullOrBlank() && bodyString != "null") {
+                    val jsonObject = org.json.JSONObject(bodyString)
+                    val keys = jsonObject.keys()
+                    val firebaseShorts = mutableListOf<ShortItem>()
 
-                            while (keys.hasNext()) {
-                                val key = keys.next()
-                                val itemObj = jsonObject.optJSONObject(key) ?: continue
-                                val title = itemObj.optString("title", "شورتس مميز")
-                                val description = itemObj.optString("description", "")
-                                val videoUrl = itemObj.optString("videoUrl", "")
-                                if (videoUrl.isBlank()) continue
-                                val posterUrl = itemObj.optString("posterUrl", "")
-                                val uploaderName = itemObj.optString("uploaderName", "حكاياتنا شورتس")
-                                val uploaderAvatar = itemObj.optString("uploaderAvatar", "")
-                                val audioTitle = itemObj.optString("audioTitle", "الصوت الأصلي")
-                                val linkedShowId = if (itemObj.has("linkedShowId")) itemObj.optString("linkedShowId") else null
-                                val likesCount = itemObj.optInt("likesCount", 0)
-                                val commentsCount = itemObj.optInt("commentsCount", 0)
-                                val sharesCount = itemObj.optInt("sharesCount", 0)
+                    while (keys.hasNext()) {
+                        val key = keys.next()
+                        val itemObj = jsonObject.optJSONObject(key) ?: continue
+                        val title = itemObj.optString("title", "شورتس مميز")
+                        val description = itemObj.optString("description", "")
+                        val videoUrl = itemObj.optString("videoUrl", "")
+                        if (videoUrl.isBlank()) continue
+                        val posterUrl = itemObj.optString("posterUrl", "")
+                        val uploaderName = itemObj.optString("uploaderName", "حكاياتنا شورتس")
+                        val uploaderAvatar = itemObj.optString("uploaderAvatar", "")
+                        val audioTitle = itemObj.optString("audioTitle", "الصوت الأصلي")
+                        val linkedShowId = if (itemObj.has("linkedShowId")) itemObj.optString("linkedShowId") else null
+                        val likesCount = itemObj.optInt("likesCount", 0)
+                        val commentsCount = itemObj.optInt("commentsCount", 0)
+                        val sharesCount = itemObj.optInt("sharesCount", 0)
 
-                                // Parse comments
-                                val commentsList = mutableListOf<ShortComment>()
-                                val commentsObj = itemObj.opt("comments")
-                                if (commentsObj is org.json.JSONObject) {
-                                    val cKeys = commentsObj.keys()
-                                    while (cKeys.hasNext()) {
-                                        val ck = cKeys.next()
-                                        val cObj = commentsObj.optJSONObject(ck) ?: continue
-                                        commentsList.add(
-                                            ShortComment(
-                                                id = ck,
-                                                user = cObj.optString("user", "مستخدم"),
-                                                avatar = cObj.optString("avatar", ""),
-                                                text = cObj.optString("text", ""),
-                                                timeAgo = cObj.optString("timeAgo", "الآن"),
-                                                linkedShowId = if (cObj.has("linkedShowId")) cObj.optString("linkedShowId") else null
-                                            )
-                                        )
-                                    }
-                                } else if (commentsObj is org.json.JSONArray) {
-                                    for (ci in 0 until commentsObj.length()) {
-                                        val cObj = commentsObj.optJSONObject(ci) ?: continue
-                                        commentsList.add(
-                                            ShortComment(
-                                                id = cObj.optString("id", "c_$ci"),
-                                                user = cObj.optString("user", "مستخدم"),
-                                                avatar = cObj.optString("avatar", ""),
-                                                text = cObj.optString("text", ""),
-                                                timeAgo = cObj.optString("timeAgo", "الآن"),
-                                                linkedShowId = if (cObj.has("linkedShowId")) cObj.optString("linkedShowId") else null
-                                            )
-                                        )
-                                    }
-                                }
-
-                                firebaseShorts.add(
-                                    ShortItem(
-                                        id = key,
-                                        title = title,
-                                        description = description,
-                                        videoUrl = videoUrl,
-                                        posterUrl = posterUrl,
-                                        uploaderName = uploaderName,
-                                        uploaderAvatar = uploaderAvatar,
-                                        audioTitle = audioTitle,
-                                        linkedShowId = linkedShowId,
-                                        likesCount = likesCount,
-                                        commentsCount = commentsList.size.coerceAtLeast(commentsCount),
-                                        sharesCount = sharesCount,
-                                        comments = commentsList
+                        val commentsList = mutableListOf<ShortComment>()
+                        val commentsObj = itemObj.opt("comments")
+                        if (commentsObj is org.json.JSONObject) {
+                            val cKeys = commentsObj.keys()
+                            while (cKeys.hasNext()) {
+                                val ck = cKeys.next()
+                                val cObj = commentsObj.optJSONObject(ck) ?: continue
+                                commentsList.add(
+                                    ShortComment(
+                                        id = ck,
+                                        user = cObj.optString("user", "مستخدم"),
+                                        avatar = cObj.optString("avatar", ""),
+                                        text = cObj.optString("text", ""),
+                                        timeAgo = cObj.optString("timeAgo", "الآن"),
+                                        linkedShowId = if (cObj.has("linkedShowId")) cObj.optString("linkedShowId") else null
                                     )
                                 )
                             }
-
-                            if (firebaseShorts.isNotEmpty()) {
-                                val currentMap = _shortsList.value.associateBy { it.id }
-                                val mergedList = firebaseShorts.map { fbItem ->
-                                    val local = currentMap[fbItem.id]
-                                    if (local != null) {
-                                        fbItem.copy(isLiked = local.isLiked, isSaved = local.isSaved)
-                                    } else {
-                                        fbItem
-                                    }
-                                }
-                                _shortsList.value = mergedList
-                            } else {
-                                _shortsList.value = getDefaultSampleShorts()
+                        } else if (commentsObj is org.json.JSONArray) {
+                            for (ci in 0 until commentsObj.length()) {
+                                val cObj = commentsObj.optJSONObject(ci) ?: continue
+                                commentsList.add(
+                                    ShortComment(
+                                        id = cObj.optString("id", "c_$ci"),
+                                        user = cObj.optString("user", "مستخدم"),
+                                        avatar = cObj.optString("avatar", ""),
+                                        text = cObj.optString("text", ""),
+                                        timeAgo = cObj.optString("timeAgo", "الآن"),
+                                        linkedShowId = if (cObj.has("linkedShowId")) cObj.optString("linkedShowId") else null
+                                    )
+                                )
                             }
-                        } else {
-                            _shortsList.value = getDefaultSampleShorts()
                         }
+
+                        firebaseShorts.add(
+                            ShortItem(
+                                id = key,
+                                title = title,
+                                description = description,
+                                videoUrl = videoUrl,
+                                posterUrl = posterUrl,
+                                uploaderName = uploaderName,
+                                uploaderAvatar = uploaderAvatar,
+                                audioTitle = audioTitle,
+                                linkedShowId = linkedShowId,
+                                likesCount = likesCount,
+                                commentsCount = commentsList.size.coerceAtLeast(commentsCount),
+                                sharesCount = sharesCount,
+                                comments = commentsList
+                            )
+                        )
                     }
+
+                    if (firebaseShorts.isNotEmpty()) {
+                        val currentMap = _shortsList.value.associateBy { it.id }
+                        val mergedList = firebaseShorts.map { fbItem ->
+                            val local = currentMap[fbItem.id]
+                            if (local != null) {
+                                fbItem.copy(isLiked = local.isLiked, isSaved = local.isSaved)
+                            } else {
+                                fbItem
+                            }
+                        }
+                        _shortsList.value = mergedList
+                    } else {
+                        _shortsList.value = getDefaultSampleShorts()
+                    }
+                } else {
+                    _shortsList.value = getDefaultSampleShorts()
                 }
             } catch (e: Exception) {
                 e.printStackTrace()
