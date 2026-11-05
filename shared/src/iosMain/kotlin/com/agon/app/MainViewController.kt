@@ -27,13 +27,15 @@ private fun WithViewModelStoreOwner(content: @Composable () -> Unit) {
 private fun configureCoil() {
     try {
         SingletonImageLoader.setSafe { ctx: PlatformContext ->
-            ImageLoader.Builder(ctx)
+            val loader = ImageLoader.Builder(ctx)
                 .memoryCache {
                     MemoryCache.Builder()
                         .maxSizePercent(ctx, 0.10)
                         .build()
                 }
                 .build()
+            com.agon.app.data.ImageLoaderHolder.loader = loader
+            loader
         }
     } catch (_: Throwable) { }
 }

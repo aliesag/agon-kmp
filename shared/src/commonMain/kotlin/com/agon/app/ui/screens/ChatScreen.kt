@@ -104,6 +104,13 @@ fun ChatScreen(
         }
     }
 
+    // Auto-scroll to the latest message whenever list changes
+    LaunchedEffect(messages.size) {
+        if (messages.isNotEmpty()) {
+            try { listState.animateScrollToItem(messages.lastIndex) } catch (_: Exception) { }
+        }
+    }
+
     fun send() {
         val text = draft.trim()
         if (text.isEmpty()) return

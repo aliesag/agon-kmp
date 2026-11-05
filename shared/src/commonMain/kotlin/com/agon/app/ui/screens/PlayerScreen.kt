@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -367,6 +368,18 @@ private fun VideoPlayerSection(
         contentAlignment = Alignment.Center
     ) {
         if (!isLoadingVideo && activeUrl != null) {
+            // Native playback for direct streams (mp4/m3u8/webm). Embeds stay in WebView.
+            val direct = activeUrl.lowercase().let {
+                it.contains(".mp4") || it.contains(".m3u8") || it.contains(".webm")
+            }
+            if (direct) {
+                com.agon.app.player.NativeStreamPlayer(
+                    url = activeUrl,
+                    referrer = currentEpisode?.link ?: show.link.ifEmpty { "https://ep.alooytv16.xyz/" },
+                    modifier = Modifier.fillMaxSize()
+                )
+                return@Box
+            }
             val playerTitle = if (currentEpisode != null) {
                 "${show.title} - ${currentEpisode.title}"
             } else {
@@ -549,7 +562,7 @@ private fun PlayerServersSection(vm: AppViewModel, currentEpisode: Episode?) {
         Text("السيرفرات المتاحة", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 13.sp)
         Spacer(Modifier.height(6.dp))
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            items(servers) { server ->
+            itemsIndexed(servers) { index, server ->
                 val selected = server.url == selectedServer?.url
                 Box(
                     modifier = Modifier
@@ -558,12 +571,12 @@ private fun PlayerServersSection(vm: AppViewModel, currentEpisode: Episode?) {
                         .clickable {
                             currentEpisode?.let { ep -> vm.selectServer(server, ep.link) }
                         }
-                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                        .padding(horizontal = 14.dp, vertical = 8.dp)
                 ) {
                     Text(
-                        server.name,
+                        "سيرفر ${index + 1}",
                         color = Color.White,
-                        fontSize = 12.sp,
+                        fontSize = 13.sp,
                         fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
                     )
                 }
