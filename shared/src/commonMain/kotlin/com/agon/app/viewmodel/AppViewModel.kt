@@ -1135,7 +1135,7 @@ class AppViewModel(private val prefsManager: PrefsManager) : ViewModel() {
         }
     }
 
-    private val pendingTmdbFetch = java.util.concurrent.ConcurrentHashMap.newKeySet<String>()
+    private val pendingTmdbFetch = HashSet<String>()
 
     fun prefetchTmdbPostersForTopShows() {
         // Disabled: using original site images only
@@ -1235,8 +1235,9 @@ class AppViewModel(private val prefsManager: PrefsManager) : ViewModel() {
 
                     for (i in 0 until resArr.length()) {
                         val res = resArr.getJSONObject(i)
+                        val resMap = res.map.mapValues { (_, v) -> v?.toString() }
                         val score = TmdbHelper.scoreResult(
-                            res = res,
+                            res = resMap,
                             targetTitle = cleanTitle.ifEmpty { show.title },
                             candidateQuery = candidate,
                             targetYear = show.year
@@ -1387,7 +1388,10 @@ class AppViewModel(private val prefsManager: PrefsManager) : ViewModel() {
     private var searchJob: Job? = null
 
     fun formatRating(rating: Double): String {
-        return "%.1f".format(java.util.Locale.US, rating)
+        val scaled = (rating * 10.0 + 0.5).toInt()
+        val whole = scaled / 10
+        val frac = scaled % 10
+        return "$whole.$frac"
     }
 
     fun performRemoteSearch(query: String) {
