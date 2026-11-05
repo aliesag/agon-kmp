@@ -1,6 +1,7 @@
 package com.agon.app.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -10,15 +11,20 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil3.compose.AsyncImage
+import com.agon.app.data.Catalog
 import com.agon.app.data.HakimConfigManager
+import com.agon.app.data.Show
 import com.agon.app.viewmodel.AppViewModel
 import kotlinx.coroutines.launch
 
@@ -28,7 +34,8 @@ private val Gold = Color(0xFFF5C518)
 data class HakimMessage(
     val id: Long,
     val text: String,
-    val isUser: Boolean
+    val isUser: Boolean,
+    val linkedShow: Show? = null,
 )
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -38,6 +45,7 @@ fun HakimChatScreen(
     onBack: () -> Unit = {},
     onOpenShow: (String) -> Unit = {}
 ) {
+    val shows by vm.shows.collectAsStateWithLifecycle()
     var messages by remember { mutableStateOf<List<HakimMessage>>(emptyList()) }
     var draft by remember { mutableStateOf("") }
     var isSending by remember { mutableStateOf(false) }
@@ -56,10 +64,42 @@ fun HakimChatScreen(
         }
     }
 
+    fun buildSystemPrompt(matched: Show?): String {
+        return if (matched != null) {
+            val imdbFormatted = formatImdb(matched.imdb)
+            """
+            أنت حكيم ✨، المستشار والناقد الفني والذكي الرسمي لتطبيق 'حكايتنا' لمشاهدة الأفلام والمسلسلات.
+            تتحدث بذكاء وسلاسة بأسلوب محفز ومرح مع رموز تعبيرية (Emojis) جذابة باللغة العربية.
+
+            المعلومات الخاصة بالعمل المرفق مع بطاقة المشاهدة للمستخدم:
+            - اسم العمل: "${matched.title}"
+            - التصنيف: ${matched.genres.joinToString("، ")}
+            - سنة الإصدار: ${matched.year}
+            - التقييم الحالي: $imdbFormatted من 10 ⭐
+            - القصة: "${matched.description.ifEmpty { "عمل درامي وترفيهي مميز يعرض بجودة عالية على حكايتنا" }}"
+
+            ⚠️ تعليمات صارمة:
+            1. إذا كان سؤال المستخدم عن تقييم العمل، أو قصته، أو أبطاله، أجب بدقة وعاطفة عن "${matched.title}".
+            2. أذكر دائماً اسم العمل بوضوح ووجه المستخدم بحماس إلى زر (اذهب للمشاهدة) الموجود ببطاقة العمل أسفل رسالتك فوراً!
+            3. كن مختصراً، ذكياً، وواضحاً بدون أي رموز غريبة أو سطور برمجية.
+            """.trimIndent()
+        } else {
+            val sampleShows = shows.filter { !it.isMovie }.take(10).joinToString("، ") { it.title }
+            """
+            أنت حكيم ✨، المستشار والناقد الفني والذكي لتطبيق 'حكايتنا'.
+            تحدث بأسلوب ممتع، ترحيبي، وذكي مع إدراج Emojis جذابة.
+            إذا رحب بك المستخدم (مثل: سلام عليكم، أهلاً، مرحباً)، رد عليه بتحية حارة وودودة واعرض عليه مساعدتك واقتراح أفضل المسلسلات له.
+            إذا سألك عن اقتراحات، اقترح له أعمالاً مميزة من مكتبتنا مثل: $sampleShows.
+            لا ترفق بطاقة عمل إلا عندما يتم تخصيص مسلسل محدد في المحادثة.
+            """.trimIndent()
+        }
+    }
+
     fun send() {
         val text = draft.trim()
         if (text.isEmpty() || isSending) return
         draft = ""
+
         val userMsg = HakimMessage(
             id = (messages.maxOfOrNull { it.id } ?: 0) + 1,
             text = text,
@@ -68,16 +108,28 @@ fun HakimChatScreen(
         messages = messages + userMsg
         isSending = true
 
+        // Show detection (same as Android)
+        val matched = try { Catalog.findMatchingShow(text, shows) } catch (_: Exception) { null }
+        val prompt = buildSystemPrompt(matched)
+
         scope.launch {
             val reply = try {
-                HakimConfigManager.askHakim(text) ?: "تعذر الاتصال بحكيم حالياً، حاول مجدداً بعد قليل."
+                HakimConfigManager.askHakim(text, systemPrompt = prompt)
+                    ?: "تعذر الاتصال بحكيم حالياً، حاول مجدداً بعد قليل."
             } catch (e: Exception) {
                 "تعذر الاتصال بحكيم: ${e.message ?: "خطأ غير معروف"}"
             }
+
+            val cleaned = reply
+                .replace("\\n", "\n")
+                .replace("\\\"", "\"")
+                .trim()
+
             val aiMsg = HakimMessage(
                 id = (messages.maxOfOrNull { it.id } ?: 0) + 1,
-                text = reply,
-                isUser = false
+                text = cleaned,
+                isUser = false,
+                linkedShow = matched
             )
             messages = messages + aiMsg
             isSending = false
@@ -107,9 +159,7 @@ fun HakimChatScreen(
                 Text("حكيم", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
                 Text("مستشارك السينمائي", color = Color(0xFF8C8C94), fontSize = 11.sp)
             }
-            IconButton(onClick = {
-                messages = emptyList()
-            }) {
+            IconButton(onClick = { messages = emptyList() }) {
                 Icon(Icons.Filled.Delete, contentDescription = "مسح", tint = Color(0xFF8C8C94))
             }
         }
@@ -122,38 +172,89 @@ fun HakimChatScreen(
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
             items(messages, key = { it.id }) { msg ->
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = if (msg.isUser) Arrangement.End else Arrangement.Start
-                ) {
-                    if (!msg.isUser) {
-                        Box(
-                            modifier = Modifier.size(28.dp).clip(RoundedCornerShape(50))
-                                .background(Brush.linearGradient(listOf(Gold, NetflixRed))),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text("ح", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                        }
-                        Spacer(Modifier.width(6.dp))
-                    }
-                    Box(
-                        modifier = Modifier
-                            .widthIn(max = 280.dp)
-                            .clip(RoundedCornerShape(14.dp))
-                            .background(if (msg.isUser) NetflixRed else Color(0xFF23232B))
-                            .padding(horizontal = 12.dp, vertical = 10.dp)
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = if (msg.isUser) Arrangement.End else Arrangement.Start
                     ) {
-                        Text(msg.text, color = Color.White, fontSize = 14.sp)
+                        if (!msg.isUser) {
+                            Box(
+                                modifier = Modifier.size(28.dp).clip(RoundedCornerShape(50))
+                                    .background(Brush.linearGradient(listOf(Gold, NetflixRed))),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text("ح", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                            }
+                            Spacer(Modifier.width(6.dp))
+                        }
+                        Box(
+                            modifier = Modifier
+                                .widthIn(max = 280.dp)
+                                .clip(RoundedCornerShape(14.dp))
+                                .background(if (msg.isUser) NetflixRed else Color(0xFF23232B))
+                                .padding(horizontal = 12.dp, vertical = 10.dp)
+                        ) {
+                            Text(msg.text, color = Color.White, fontSize = 14.sp)
+                        }
+                    }
+
+                    // Linked show card (like Android)
+                    val linked = msg.linkedShow
+                    if (linked != null) {
+                        Spacer(Modifier.height(6.dp))
+                        Row(
+                            modifier = Modifier
+                                .padding(start = 34.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(Color(0xFF16161C))
+                                .clickable { onOpenShow(linked.id) }
+                                .padding(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(
+                                modifier = Modifier.size(width = 46.dp, height = 66.dp)
+                                    .clip(RoundedCornerShape(6.dp))
+                                    .background(Color(0xFF23232B))
+                            ) {
+                                AsyncImage(
+                                    model = linked.poster,
+                                    contentDescription = linked.title,
+                                    contentScale = ContentScale.Crop,
+                                    modifier = Modifier.fillMaxSize()
+                                )
+                            }
+                            Spacer(Modifier.width(10.dp))
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(linked.title, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
+                                Text(
+                                    "${linked.year} • ${linked.rating}",
+                                    color = Color(0xFF8C8C94), fontSize = 11.sp
+                                )
+                                Spacer(Modifier.height(4.dp))
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Icon(Icons.Filled.Star, contentDescription = null, tint = Gold, modifier = Modifier.size(12.dp))
+                                    Spacer(Modifier.width(2.dp))
+                                    Text(formatImdb(linked.imdb), color = Gold, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                }
+                            }
+                            Spacer(Modifier.width(8.dp))
+                            Box(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(NetflixRed)
+                                    .clickable { onOpenShow(linked.id) }
+                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                            ) {
+                                Text("اذهب للمشاهدة", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
                     }
                 }
             }
             if (isSending) {
                 item {
                     Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
-                        CircularProgressIndicator(
-                            color = Gold, strokeWidth = 2.dp,
-                            modifier = Modifier.size(18.dp)
-                        )
+                        CircularProgressIndicator(color = Gold, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(6.dp))
                         Text("حكيم يكتب…", color = Color(0xFF8C8C94), fontSize = 12.sp)
                     }
@@ -191,4 +292,9 @@ fun HakimChatScreen(
             }
         }
     }
+}
+
+private fun formatImdb(v: Double): String {
+    val scaled = (v * 10.0 + 0.5).toInt()
+    return "${scaled / 10}.${scaled % 10}"
 }

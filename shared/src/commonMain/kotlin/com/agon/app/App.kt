@@ -178,7 +178,7 @@ private fun MainContent(
                         ChatScreen(vm = vm, onBack = { nav.popBackStack() })
                     }
                     composable("hakim") {
-                        HakimChatScreen(vm = vm, onBack = { nav.popBackStack() })
+                        HakimChatScreen(vm = vm, onBack = { nav.popBackStack() }, onOpenShow = { id -> nav.navigate("detail/$id") })
                     }
                     composable("profile") {
                         SettingsScreen(
