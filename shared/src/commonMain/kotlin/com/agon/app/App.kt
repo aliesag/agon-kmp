@@ -16,6 +16,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -27,6 +28,7 @@ import com.agon.app.ui.screens.*
 import com.agon.app.ui.theme.AgonAppTheme
 import com.agon.app.viewmodel.AppViewModel
 import com.agon.app.viewmodel.MatchesViewModel
+import kotlinx.coroutines.launch
 
 private val NetflixRed = Color(0xFFE50914)
 private val BgColor = Color(0xFF0B0B0F)
@@ -40,113 +42,154 @@ fun App() {
         val vm = remember { AppViewModel(prefs) }
         val matchesVm = remember { MatchesViewModel() }
         val nav = rememberNavController()
+        val scope = rememberCoroutineScope()
 
-        val backStack by nav.currentBackStackEntryAsState()
-        val currentRoute = backStack?.destination?.route
-        val bottomRoutes = setOf("home", "matches", "mylist", "chat", "profile")
-        val showBottomBar = currentRoute in bottomRoutes
+        val deviceType by vm.deviceType.collectAsStateWithLifecycle()
+        val onboardingCompleted by vm.onboardingCompleted.collectAsStateWithLifecycle()
+        val skipIntro by vm.skipIntro.collectAsStateWithLifecycle()
+        var hasPlayedIntro by remember { mutableStateOf(false) }
+        var bootComplete by remember { mutableStateOf(false) }
 
-        Surface(modifier = Modifier.fillMaxSize(), color = BgColor) {
-            Column(modifier = Modifier.fillMaxSize()) {
-                Box(modifier = Modifier.weight(1f)) {
-                    NavHost(navController = nav, startDestination = "home") {
-                        composable("home") {
-                            HomeScreen(
-                                vm = vm,
-                                matchesVm = matchesVm,
-                                onOpenMatches = { nav.navigate("matches") },
-                                onOpenShow = { id -> nav.navigate("detail/$id") },
-                                onPlay = { showId, epId ->
-                                    if (epId != null) nav.navigate("player/$showId/$epId")
-                                    else nav.navigate("detail/$showId")
+        // Boot gates (mirror of original MainActivity start flow):
+        // device selection -> intro/preload -> onboarding -> main nav
+        when {
+            deviceType.isBlank() -> {
+                DeviceSelectionScreen(onDeviceSelected = { selected ->
+                    scope.launch { vm.setDeviceType(selected) }
+                })
+            }
+            !bootComplete -> {
+                if (!skipIntro && !hasPlayedIntro) {
+                    HekayatnaProfessionalIntro(
+                        deviceType = deviceType,
+                        onIntroFinished = {
+                            hasPlayedIntro = true
+                            vm.markIntroCompleted()
+                        }
+                    )
+                } else {
+                    AppHomePreloadScreen(onPreloadComplete = { bootComplete = true })
+                }
+            }
+            !onboardingCompleted -> {
+                OnboardingScreen(
+                    vm = vm,
+                    onComplete = {
+                        scope.launch { prefs.setOnboardingCompleted(true) }
+                        bootComplete = true
+                    }
+                )
+            }
+            else -> {
+                MainContent(vm = vm, matchesVm = matchesVm, nav = nav)
+            }
+        }
+    }
+}
+
+@Composable
+private fun MainContent(
+    vm: AppViewModel,
+    matchesVm: MatchesViewModel,
+    nav: NavHostController
+) {
+    val backStack by nav.currentBackStackEntryAsState()
+    val currentRoute = backStack?.destination?.route
+    val bottomRoutes = setOf("home", "matches", "mylist", "chat", "profile")
+    val showBottomBar = currentRoute in bottomRoutes
+
+    Surface(modifier = Modifier.fillMaxSize(), color = BgColor) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            Box(modifier = Modifier.weight(1f)) {
+                NavHost(navController = nav, startDestination = "home") {
+                    composable("home") {
+                        HomeScreen(
+                            vm = vm,
+                            matchesVm = matchesVm,
+                            onOpenMatches = { nav.navigate("matches") },
+                            onOpenShow = { id -> nav.navigate("detail/$id") },
+                            onPlay = { showId, epId ->
+                                if (epId != null) nav.navigate("player/$showId/$epId")
+                                else nav.navigate("detail/$showId")
+                            }
+                        )
+                    }
+                    composable("matches") {
+                        MatchesScreen(
+                            vm = matchesVm,
+                            onOpenMatch = { id -> nav.navigate("match_player/$id") }
+                        )
+                    }
+                    composable("match_player/{matchId}") { entry ->
+                        val id = entry.arguments?.getString("matchId").orEmpty()
+                        val matches = MatchesRepository.getInitialMatches()
+                        val match = matches.find { it.id == id } ?: matches.first()
+                        MatchPlayerScreen(
+                            match = match,
+                            otherMatches = matches.filter { it.id != match.id },
+                            onBack = { nav.popBackStack() },
+                            onSelectMatch = { m ->
+                                nav.navigate("match_player/${m.id}") {
+                                    popUpTo("match_player/$id") { inclusive = true }
                                 }
-                            )
-                        }
-                        composable("matches") {
-                            MatchesScreen(
-                                vm = matchesVm,
-                                onOpenMatch = { id -> nav.navigate("match_player/$id") }
-                            )
-                        }
-                        composable("match_player/{matchId}") { entry ->
-                            val id = entry.arguments?.getString("matchId").orEmpty()
-                            val matches = MatchesRepository.getInitialMatches()
-                            val match = matches.find { it.id == id } ?: matches.first()
-                            MatchPlayerScreen(
-                                match = match,
-                                otherMatches = matches.filter { it.id != match.id },
-                                onBack = { nav.popBackStack() },
-                                onSelectMatch = { m ->
-                                    nav.navigate("match_player/${m.id}") {
-                                        popUpTo("match_player/$id") { inclusive = true }
-                                    }
-                                }
-                            )
-                        }
-                        composable("search") {
-                            TopBarScreen(title = "البحث", onBack = { nav.popBackStack() }) {
-                                SearchScreen(
-                                    vm = vm,
-                                    onOpenShow = { id -> nav.navigate("detail/$id") }
-                                )
                             }
-                        }
-                        composable("mylist") {
-                            MyListScreen(
-                                vm = vm,
-                                onOpenShow = { id -> nav.navigate("detail/$id") },
-                                onOpenDownloads = { nav.navigate("downloaded_episodes") }
-                            )
-                        }
-                        composable("downloaded_episodes") {
-                            ComingSoonScreen("الحلقات المحملة", "التنزيل الفعلي عبر URLSession في المرحلة القادمة") { nav.popBackStack() }
-                        }
-                        composable("shorts") {
-                            ComingSoonScreen("شورتس", "مشغّل الفيديو العمودي عبر AVPlayer في المرحلة القادمة") { nav.popBackStack() }
-                        }
-                        composable("chat") {
-                            TopBarScreen(title = "الدردشة", onBack = { nav.popBackStack() }, hideBack = true) {
-                                ChatScreen(vm = vm, onBack = { nav.popBackStack() })
-                            }
-                        }
-                        composable("hakim") {
-                            TopBarScreen(title = "حكيم", onBack = { nav.popBackStack() }, hideBack = true) {
-                                HakimChatScreen(vm = vm, onBack = { nav.popBackStack() })
-                            }
-                        }
-                        composable("profile") {
-                            ComingSoonScreen("المزيد", "الإعدادات والملف الشخصي في المرحلة القادمة") { nav.popBackStack() }
-                        }
-                        composable("detail/{id}") { entry ->
-                            val id = entry.arguments?.getString("id").orEmpty()
-                            DetailScreen(
-                                showId = id,
-                                vm = vm,
-                                onBack = { nav.popBackStack() },
-                                onPlay = { showId, epId ->
-                                    if (epId != null) nav.navigate("player/$showId/$epId")
-                                },
-                                onOpenShow = { sid -> nav.navigate("detail/$sid") },
-                                onNavigateToDownloads = { nav.navigate("downloaded_episodes") }
-                            )
-                        }
-                        composable("player/{id}/{episodeId}") {
-                            ComingSoonScreen("المشغّل", "مشغّل الفيديو الرئيسي عبر AVPlayer في المرحلة القادمة") { nav.popBackStack() }
-                        }
-                        composable("browse_all") {
-                            BrowseAllScreen(
-                                title = "تصفح الكل",
-                                shows = vm.shows.value,
-                                onOpenShow = { id -> nav.navigate("detail/$id") },
-                                onBack = { nav.popBackStack() }
-                            )
+                        )
+                    }
+                    composable("search") {
+                        TopBarScreen(title = "البحث", onBack = { nav.popBackStack() }) {
+                            SearchScreen(vm = vm, onOpenShow = { id -> nav.navigate("detail/$id") })
                         }
                     }
+                    composable("mylist") {
+                        MyListScreen(
+                            vm = vm,
+                            onOpenShow = { id -> nav.navigate("detail/$id") },
+                            onOpenDownloads = { nav.navigate("downloaded_episodes") }
+                        )
+                    }
+                    composable("downloaded_episodes") {
+                        ComingSoonScreen("الحلقات المحملة", "التنزيل الفعلي عبر URLSession في المرحلة القادمة") { nav.popBackStack() }
+                    }
+                    composable("shorts") {
+                        ComingSoonScreen("شورتس", "مشغّل الفيديو العمودي عبر AVPlayer في المرحلة القادمة") { nav.popBackStack() }
+                    }
+                    composable("chat") {
+                        ChatScreen(vm = vm, onBack = { nav.popBackStack() })
+                    }
+                    composable("hakim") {
+                        HakimChatScreen(vm = vm, onBack = { nav.popBackStack() })
+                    }
+                    composable("profile") {
+                        ComingSoonScreen("المزيد", "الإعدادات والملف الشخصي في المرحلة القادمة") { nav.popBackStack() }
+                    }
+                    composable("detail/{id}") { entry ->
+                        val id = entry.arguments?.getString("id").orEmpty()
+                        DetailScreen(
+                            showId = id,
+                            vm = vm,
+                            onBack = { nav.popBackStack() },
+                            onPlay = { showId, epId ->
+                                if (epId != null) nav.navigate("player/$showId/$epId")
+                            },
+                            onOpenShow = { sid -> nav.navigate("detail/$sid") },
+                            onNavigateToDownloads = { nav.navigate("downloaded_episodes") }
+                        )
+                    }
+                    composable("player/{id}/{episodeId}") {
+                        ComingSoonScreen("المشغّل", "مشغّل الفيديو الرئيسي عبر AVPlayer في المرحلة القادمة") { nav.popBackStack() }
+                    }
+                    composable("browse_all") {
+                        BrowseAllScreen(
+                            title = "تصفح الكل",
+                            shows = vm.shows.value,
+                            onOpenShow = { id -> nav.navigate("detail/$id") },
+                            onBack = { nav.popBackStack() }
+                        )
+                    }
                 }
-
-                if (showBottomBar) {
-                    BottomNav(nav = nav, currentRoute = currentRoute)
-                }
+            }
+            if (showBottomBar) {
+                BottomNav(nav = nav, currentRoute = currentRoute)
             }
         }
     }
@@ -167,11 +210,7 @@ private fun TopBarScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(onClick = onBack) {
-                    Icon(
-                        Icons.AutoMirrored.Filled.ArrowBack,
-                        contentDescription = "رجوع",
-                        tint = Color.White
-                    )
+                    Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "رجوع", tint = Color.White)
                 }
                 Text(title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
             }
