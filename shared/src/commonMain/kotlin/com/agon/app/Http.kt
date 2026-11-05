@@ -1,13 +1,15 @@
 package com.agon.app
 
-import io.ktor.client.*
-import io.ktor.client.request.*
-import io.ktor.client.statement.*
+import io.ktor.client.HttpClient
+import io.ktor.client.request.get
+import io.ktor.client.request.header
+import io.ktor.client.statement.bodyAsText
 
-// Replaces okhttp3 usage in EpisodeScraper / MatchesRepository / TmdbHelper.
-// Engine is picked per platform automatically (OkHttp on Android, Darwin on iOS).
+expect fun platformHttpClient(): HttpClient
+
 object Http {
-    val client = HttpClient()
+    val client: HttpClient by lazy { platformHttpClient() }
+
     suspend fun get(url: String, headers: Map<String, String> = emptyMap()): String =
         client.get(url) { headers.forEach { (k, v) -> header(k, v) } }.bodyAsText()
 }

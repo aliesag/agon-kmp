@@ -16,7 +16,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -38,8 +37,8 @@ private val Grey = Color(0xFF8C8C94)
 fun App() {
     AgonAppTheme {
         val prefs = remember { PrefsManager() }
-        val vm: AppViewModel = viewModel { AppViewModel(prefs) }
-        val matchesVm: MatchesViewModel = viewModel()
+        val vm = remember { AppViewModel(prefs) }
+        val matchesVm = remember { MatchesViewModel() }
         val nav = rememberNavController()
 
         val backStack by nav.currentBackStackEntryAsState()
