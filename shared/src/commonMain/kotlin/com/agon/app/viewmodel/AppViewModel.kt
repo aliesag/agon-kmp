@@ -770,9 +770,24 @@ class AppViewModel(private val prefsManager: PrefsManager) : ViewModel() {
                         show.id.startsWith("ramadan_") || show.id.startsWith("kleeji_") || show.id.startsWith("arabic_") || show.id.startsWith("asia_"))
     }
 
+    private val _catalogLoading = MutableStateFlow(false)
+    val catalogLoading = _catalogLoading.asStateFlow()
+
+    private val _fullCatalogLoaded = MutableStateFlow(false)
+    val fullCatalogLoaded = _fullCatalogLoaded.asStateFlow()
+
+    // Lightweight startup — instant local list, then 3 fast scrapes in background.
+    // Heavy 50-page catalog is loaded lazily via loadFullCatalog().
+
+
+    // Lightweight startup — instant local list, then 3 fast scrapes in background.
+    // Heavy 50-page catalog is loaded lazily via loadFullCatalog().
+
+
+    // Lightweight startup — instant local list, then 3 fast scrapes in background.
+    // Heavy 50-page catalog is loaded lazily via loadFullCatalog().
     private fun loadHomeScrapedData() {
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
-            try {
             try {
                 val currentShows = mutableListOf<Show>()
                 currentShows.addAll(Catalog.all.filterNot { isAlooytvSeries(it) || Catalog.isTashShow(it.title, it.link, it.id) })
@@ -782,16 +797,17 @@ class AppViewModel(private val prefsManager: PrefsManager) : ViewModel() {
                     rebuildCategories(initialList)
                 }
 
-                // 1. Fetch live updates directly from https://e.3cktv.com/ root homepage
-                val rootHomeShows = try {
-                    EpisodeScraper.scrape3cktvRootHome()
-                } catch (e: Exception) {
-                    emptyList<Show>()
-                }
+                // --- Tier 1: 3 quick sources only ---
+                val fastSources = mutableListOf<Show>()
+                try { fastSources += EpisodeScraper.scrape3cktvRootHome() } catch (_: Exception) {}
+                try { fastSources += EpisodeScraper.scrapeHomePageLatest() } catch (_: Exception) {}
+                try { fastSources += EpisodeScraper.scrapeFostaHomePage() } catch (_: Exception) {}
 
-                if (rootHomeShows.isNotEmpty()) {
-                    rootHomeShows.reversed().forEach { newShow ->
-                        if (!isAlooytvSeries(newShow) && !Catalog.isTashShow(newShow.title, newShow.link, newShow.id) && currentShows.none { it.id == newShow.id || (it.link.isNotEmpty() && it.link == newShow.link) }) {
+                if (fastSources.isNotEmpty()) {
+                    fastSources.reversed().forEach { newShow ->
+                        if (!isAlooytvSeries(newShow) &&
+                            !Catalog.isTashShow(newShow.title, newShow.link, newShow.id) &&
+                            currentShows.none { it.id == newShow.id || (it.link.isNotEmpty() && it.link == newShow.link) }) {
                             currentShows.add(0, newShow)
                         }
                     }
@@ -801,170 +817,107 @@ class AppViewModel(private val prefsManager: PrefsManager) : ViewModel() {
                         rebuildCategories(updated)
                     }
                 }
-
-                // 2. Fetch series page updates
-                val latestFromHome = try {
-                    EpisodeScraper.scrapeHomePageLatest()
-                } catch (e: Exception) {
-                    emptyList<Show>()
-                }
-
-                if (latestFromHome.isNotEmpty()) {
-                    latestFromHome.forEach { newShow ->
-                        if (!isAlooytvSeries(newShow) && !Catalog.isTashShow(newShow.title, newShow.link, newShow.id) && currentShows.none { it.id == newShow.id || (it.link.isNotEmpty() && it.link == newShow.link) }) {
-                            currentShows.add(0, newShow)
-                        }
-                    }
-                    val updated = deduplicateByTitle(currentShows)
-                    kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                        _shows.value = updated
-                        rebuildCategories(updated)
-                    }
-                }
-
-                // 3. Fetch ALL 50 pages of 3cktv series in parallel chunks
-                try {
-                    for (batchStart in 1..50 step 5) {
-                        val batchEnd = (batchStart + 4).coerceAtMost(50)
-                        val jobs = (batchStart..batchEnd).map { page ->
-                            async {
-                                try {
-                                    EpisodeScraper.scrapeSeriesPage(page, "e.3cktv.com")
-                                } catch (e: Exception) {
-                                    emptyList()
-                                }
-                            }
-                        }
-                        val results = jobs.awaitAll().flatten()
-                        if (results.isNotEmpty()) {
-                            var addedAny = false
-                            results.forEach { newShow ->
-                                if (!Catalog.isTashShow(newShow.title, newShow.link, newShow.id) && currentShows.none { 
-                                    it.title.equals(newShow.title, ignoreCase = true) || 
-                                    (it.link.isNotEmpty() && it.link == newShow.link) 
-                                }) {
-                                    currentShows.add(newShow)
-                                    addedAny = true
-                                }
-                            }
-                            if (addedAny) {
-                                val updated = deduplicateByTitle(currentShows)
-                                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                    _shows.value = updated
-                                    rebuildCategories(updated)
-                                }
-                            }
-                        }
-                    }
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-
-                // 4. Fetch live featured series and movies from home
-                try {
-                    val fostaHome = EpisodeScraper.scrapeFostaHomePage()
-                    if (fostaHome.isNotEmpty()) {
-                        var added = false
-                        fostaHome.forEach { show ->
-                            if (!isAlooytvSeries(show) && !Catalog.isTashShow(show.title, show.link, show.id) && currentShows.none { it.id == show.id || (it.link.isNotEmpty() && it.link == show.link) }) {
-                                currentShows.add(show)
-                                added = true
-                            }
-                        }
-                        if (added) {
-                            val updated = deduplicateByTitle(currentShows)
-                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                _shows.value = updated
-                                rebuildCategories(updated)
-                            }
-                        }
-                    }
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-
-                // 5. Ingest series catalog (Arabic & popular series)
-                try {
-                    val seriesJobs = (1..3).map { page ->
-                        async {
-                            try {
-                                EpisodeScraper.scrapeFostaSeries(page)
-                            } catch (e: Exception) {
-                                emptyList()
-                            }
-                        }
-                    }
-                    val seriesResults = seriesJobs.awaitAll().flatten()
-                    if (seriesResults.isNotEmpty()) {
-                        var added = false
-                        seriesResults.forEach { show ->
-                            if (!isAlooytvSeries(show) && !Catalog.isTashShow(show.title, show.link, show.id) && currentShows.none { 
-                                it.title.equals(show.title, ignoreCase = true) ||
-                                (it.link.isNotEmpty() && it.link == show.link)
-                            }) {
-                                currentShows.add(show)
-                                added = true
-                            }
-                        }
-                        if (added) {
-                            val updated = deduplicateByTitle(currentShows)
-                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                _shows.value = updated
-                                rebuildCategories(updated)
-                            }
-                        }
-                    }
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-
-                // 6. Ingest movies catalog (Arabic & foreign movies)
-                try {
-                    val arabicMoviesJob = async {
-                        try {
-                            EpisodeScraper.scrapeFostaMovies("1aflam-3araby", "افلام عربية", 1)
-                        } catch (e: Exception) {
-                            emptyList()
-                        }
-                    }
-                    val foreignMoviesJob = async {
-                        try {
-                            EpisodeScraper.scrapeFostaMovies("english-movies", "افلام اجنبية", 1)
-                        } catch (e: Exception) {
-                            emptyList()
-                        }
-                    }
-                    val movieResults = (arabicMoviesJob.await() + foreignMoviesJob.await())
-                    if (movieResults.isNotEmpty()) {
-                        var added = false
-                        movieResults.forEach { show ->
-                            if (!isAlooytvSeries(show) && !Catalog.isTashShow(show.title, show.link, show.id) && currentShows.none { 
-                                it.title.equals(show.title, ignoreCase = true) ||
-                                (it.link.isNotEmpty() && it.link == show.link)
-                            }) {
-                                currentShows.add(show)
-                                added = true
-                            }
-                        }
-                        if (added) {
-                            val updated = deduplicateByTitle(currentShows)
-                            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
-                                _shows.value = updated
-                                rebuildCategories(updated)
-                            }
-                        }
-                    }
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
+            } catch (t: Throwable) {
+                println("loadHomeScrapedData: ${t.message}")
             }
-        
-            } catch (t: Throwable) { println("VANTA_VM_LAUNCH_ERR: ${t.message}") }
         }
     }
 
+    /** Heavy catalog (50 pages, series, movies). Call from Browse All / when user wants more. */
+    fun loadFullCatalog() {
+        if (_fullCatalogLoaded.value || _catalogLoading.value) return
+        viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
+            _catalogLoading.value = true
+            try {
+                val currentShows = _shows.value.toMutableList()
+
+                // Series pages — 10 pages max per batch (heavier batches only if user scrolls further)
+                for (batchStart in 1..10 step 5) {
+                    val batchEnd = (batchStart + 4).coerceAtMost(10)
+                    val jobs = (batchStart..batchEnd).map { page ->
+                        async { try { EpisodeScraper.scrapeSeriesPage(page, "e.3cktv.com") } catch (_: Exception) { emptyList() } }
+                    }
+                    val results = jobs.awaitAll().flatten()
+                    if (results.isNotEmpty()) {
+                        var added = false
+                        results.forEach { newShow ->
+                            if (!Catalog.isTashShow(newShow.title, newShow.link, newShow.id) && currentShows.none {
+                                    it.title.equals(newShow.title, ignoreCase = true) ||
+                                    (it.link.isNotEmpty() && it.link == newShow.link)
+                                }) {
+                                currentShows.add(newShow); added = true
+                            }
+                        }
+                        if (added) {
+                            val updated = deduplicateByTitle(currentShows)
+                            withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                _shows.value = updated
+                                rebuildCategories(updated)
+                            }
+                        }
+                    }
+                }
+
+                // Fosta series (3 pages)
+                try {
+                    val jobs = (1..3).map { page ->
+                        async { try { EpisodeScraper.scrapeFostaSeries(page) } catch (_: Exception) { emptyList() } }
+                    }
+                    val results = jobs.awaitAll().flatten()
+                    if (results.isNotEmpty()) {
+                        var added = false
+                        results.forEach { show ->
+                            if (!isAlooytvSeries(show) && !Catalog.isTashShow(show.title, show.link, show.id) && currentShows.none {
+                                    it.title.equals(show.title, ignoreCase = true) ||
+                                    (it.link.isNotEmpty() && it.link == show.link)
+                                }) { currentShows.add(show); added = true }
+                        }
+                        if (added) {
+                            val updated = deduplicateByTitle(currentShows)
+                            withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                _shows.value = updated
+                                rebuildCategories(updated)
+                            }
+                        }
+                    }
+                } catch (_: Exception) {}
+
+                // Movies
+                try {
+                    val arabic = async { try { EpisodeScraper.scrapeFostaMovies("1aflam-3araby", "افلام عربية", 1) } catch (_: Exception) { emptyList() } }
+                    val foreign = async { try { EpisodeScraper.scrapeFostaMovies("english-movies", "افلام اجنبية", 1) } catch (_: Exception) { emptyList() } }
+                    val results = arabic.await() + foreign.await()
+                    if (results.isNotEmpty()) {
+                        var added = false
+                        results.forEach { show ->
+                            if (!isAlooytvSeries(show) && !Catalog.isTashShow(show.title, show.link, show.id) && currentShows.none {
+                                    it.title.equals(show.title, ignoreCase = true) ||
+                                    (it.link.isNotEmpty() && it.link == show.link)
+                                }) { currentShows.add(show); added = true }
+                        }
+                        if (added) {
+                            val updated = deduplicateByTitle(currentShows)
+                            withContext(kotlinx.coroutines.Dispatchers.Main) {
+                                _shows.value = updated
+                                rebuildCategories(updated)
+                            }
+                        }
+                    }
+                } catch (_: Exception) {}
+
+                _fullCatalogLoaded.value = true
+            } catch (t: Throwable) {
+                println("loadFullCatalog: ${t.message}")
+            } finally {
+                _catalogLoading.value = false
+            }
+        }
+    }
+
+
+
+    /** Heavy catalog (50 pages, series, movies). Call from Browse All / when user wants more. */
+    /** Heavy catalog (50 pages, series, movies). Call from Browse All / when user wants more. */
     private fun deduplicateByTitle(list: List<Show>): List<Show> {
         val map = LinkedHashMap<String, Show>()
         for (rawShow in list) {

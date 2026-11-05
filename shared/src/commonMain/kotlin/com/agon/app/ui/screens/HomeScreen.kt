@@ -163,43 +163,6 @@ fun HomeScreen(
                     .fillMaxSize()
                     .widthIn(max = 1200.dp)
             ) {
-            // Top bar: logo + search + hakim + exit
-            item {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .size(36.dp)
-                            .clip(RoundedCornerShape(10.dp))
-                            .background(NetflixRed),
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text("ح", color = Color.White, fontWeight = FontWeight.Black, fontSize = 20.sp)
-                    }
-                    Spacer(Modifier.width(10.dp))
-                    Text(
-                        "حكايتنا",
-                        color = Color.White,
-                        fontWeight = FontWeight.Black,
-                        fontSize = 20.sp,
-                        modifier = Modifier.weight(1f)
-                    )
-                    if (onSearchClick != null) {
-                        IconButton(onClick = onSearchClick) {
-                            Icon(Icons.Filled.Search, contentDescription = "بحث", tint = Color.White)
-                        }
-                    }
-                    if (onOpenHakim != null) {
-                        IconButton(onClick = onOpenHakim) {
-                            Icon(Icons.Filled.AutoAwesome, contentDescription = "حكيم", tint = Color(0xFFF5C518))
-                        }
-                    }
-                }
-            }
 
             if (featuredShows.isNotEmpty()) {
                 item {
