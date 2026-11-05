@@ -101,7 +101,7 @@ fun HomeScreen(
 
     if (showReportDialog) {
         ReportIssueDialog(
-            deviceType = deviceType,
+            showId = "home",
             onDismiss = { showReportDialog = false }
         )
     }

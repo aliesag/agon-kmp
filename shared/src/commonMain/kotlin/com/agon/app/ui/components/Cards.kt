@@ -164,7 +164,7 @@ fun PosterCard(
                         )
                         Spacer(Modifier.width(2.dp))
                         Text(
-                            text = String.format(java.util.Locale.US, "%.1f", show.imdb),
+                            text = formatOneDecimal(show.imdb),
                             color = Color.White,
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Bold
@@ -324,7 +324,7 @@ fun RatingBadge(imdb: Double) {
             modifier = Modifier.size(14.dp),
         )
         Text(
-            text = " " + String.format(java.util.Locale.US, "%.1f", imdb),
+            text = " " + formatOneDecimal(imdb),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             fontSize = 13.sp,
             fontWeight = FontWeight.SemiBold,

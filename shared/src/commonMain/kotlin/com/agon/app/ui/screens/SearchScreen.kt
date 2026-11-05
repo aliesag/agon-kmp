@@ -115,8 +115,9 @@ fun SearchScreen(vm: AppViewModel, onOpenShow: (String) -> Unit) {
 
     if (showVoiceSearchOverlay) {
         com.agon.app.ui.components.VoiceSearchOverlay(
+            visible = true,
             onDismiss = { showVoiceSearchOverlay = false },
-            onSpeechResult = { text ->
+            onResult = { text ->
                 query = text
                 showVoiceSearchOverlay = false
             }
