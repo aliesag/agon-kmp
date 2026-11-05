@@ -16,6 +16,29 @@ jobs:
           key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: gradle-${{ runner.os }}-
       - run: brew install xcodegen
+      - name: Pre-download Gradle distribution
+        run: |
+          set -e
+          GRADLE_VER=8.11.1
+          DEST="$HOME/.gradle/wrapper/dists/gradle-$GRADLE_VER-bin"
+          mkdir -p "$DEST"
+          # Find the hashed subdir Gradle expects, or let wrapper do it once
+          for url in \
+            "https://downloads.gradle.org/distributions/gradle-$GRADLE_VER-bin.zip" \
+            "https://services.gradle.org/distributions/gradle-$GRADLE_VER-bin.zip" \
+            "https://github.com/gradle/gradle-distributions/releases/download/v$GRADLE_VER/gradle-$GRADLE_VER-bin.zip"; do
+            if curl -fSL --retry 3 --retry-delay 2 -o "/tmp/gradle.zip" "$url"; then
+              echo "downloaded from $url"
+              # Compute expected hash dir the wrapper uses (it's a hex of the URL)
+              HASH=$(printf "%s" "$url" | shasum | cut -d' ' -f1)
+              mkdir -p "$DEST/$HASH"
+              unzip -q "/tmp/gradle.zip" -d "$DEST/$HASH"
+              # remove zip and create ok marker
+              touch "$DEST/$HASH/gradle-$GRADLE_VER-bin.zip.ok"
+              exit 0
+            fi
+          done
+          echo "failed to download gradle"; exit 1
       - name: Generate Xcode project
         run: |
           cd iosApp
