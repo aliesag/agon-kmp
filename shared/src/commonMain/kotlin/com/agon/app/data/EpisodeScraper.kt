@@ -111,8 +111,34 @@ object EpisodeScraper {
         } catch (e: Exception) { emptyMap() }
     }
 
+    // 3cktv mirrors — try in order if primary fails
+    private val CKTV_MIRRORS = listOf(
+        "e.3cktv.com",
+        "www.3cktv.com",
+        "3cktv.com",
+        "3iskk.xyz",
+        "i3sk.com",
+        "wvw.i3sk.com"
+    )
+
     private suspend fun fetchDocWithBypass(url: String, referrer: String? = null): Document? {
-        for (ua in UA_LIST) {
+        // 1) direct attempt
+        fetchOnce(url, referrer)?.let { return it }
+
+        // 2) if URL is 3cktv family, try mirrors
+        if (url.contains("3cktv") || url.contains("3iskk") || url.contains("i3sk")) {
+            val path = url.substringAfter("://").substringAfter("/", "")
+            for (mirror in CKTV_MIRRORS) {
+                if (url.contains(mirror)) continue
+                val altUrl = "https://$mirror/$path"
+                fetchOnce(altUrl, "https://$mirror/")?.let { return it }
+            }
+        }
+        return null
+    }
+
+    private suspend fun fetchOnce(url: String, referrer: String?): Document? {
+        for (ua in listOf(UA_LIST[0], UA_LIST[1])) {
             try {
                 val headers = mutableMapOf(
                     "User-Agent" to ua,
@@ -121,18 +147,40 @@ object EpisodeScraper {
                     "Cache-Control" to "no-cache"
                 )
                 if (!referrer.isNullOrBlank()) headers["Referer"] = referrer
-                val doc = Ksoup.parse(Http.get(url, headers))
-                val html = doc.html()
-                if (!html.contains("you have been blocked") &&
-                    !html.contains("You are unable to access") &&
-                    !html.contains("Sorry, you have been blocked") &&
-                    !html.contains("cf-browser-verification")) {
-                    return doc
+                else if (url.contains("3cktv") || url.contains("3iskk")) headers["Referer"] = "https://e.3cktv.com/"
+                else if (url.contains("fosta")) headers["Referer"] = "https://ffosta-tv.quest/"
+                else if (url.contains("alooytv")) headers["Referer"] = "https://ep.alooytv16.xyz/"
+
+                val html = Http.get(url, headers)
+                // Reject Cloudflare challenge / empty
+                if (html.length > 200 &&
+                    !html.contains("Just a moment", ignoreCase = true) &&
+                    !html.contains("cf-browser-verification", ignoreCase = true) &&
+                    !html.contains("Attention Required", ignoreCase = true)) {
+                    return Ksoup.parse(html)
                 }
-            } catch (e: Exception) { /* try next UA */ }
+            } catch (_: Throwable) { /* try next UA */ }
         }
         return null
     }
+
+    /**
+     * Public debug helper — returns HTML size + first 100 chars for a URL so we can
+     * understand exactly what the network is returning on-device.
+     */
+    suspend fun debugFetch(url: String): String {
+        return try {
+            val html = Http.get(url, mapOf(
+                "User-Agent" to UA_LIST[0],
+                "Referer" to "https://e.3cktv.com/"
+            ))
+            "size=${html.length}
+first200=${html.take(200)}"
+        } catch (t: Throwable) {
+            "ERROR: ${t.message}"
+        }
+    }
+
 
     private val bgRegex = Regex("url\\(['\"]?(.*?)['\"]?\\)")
 
@@ -190,7 +238,7 @@ object EpisodeScraper {
             val shows = mutableListOf<Show>()
             try {
                 val url = if (page <= 1) "https://$domain/video/series/" else "https://$domain/video/series/page/$page/"
-                val doc = fetchDocWithBypass(url) ?: fetchDocOrThrow(url)
+                val doc = fetchDocWithBypass(url) ?: return@async emptyList<Show>()
 
                 val elements = doc.select("article.postEp, article.post").ifEmpty { doc.select(".block-post") }
                 elements.forEachIndexed { index, el ->
@@ -777,7 +825,7 @@ object EpisodeScraper {
                             val pageShows = mutableListOf<Show>()
                             try {
                                 val url = if (page == 1) "https://e.3cktv.com/?s=$encodedQuery" else "https://e.3cktv.com/page/$page/?s=$encodedQuery"
-                                val doc = fetchDocWithBypass(url) ?: fetchDocOrThrow(url)
+                                val doc = fetchDocWithBypass(url) ?: return@async emptyList<Show>()
 
                                 doc.select("article.postEp, article.post, .block-post").forEach { el ->
                                     val aTag = el.selectFirst("a") ?: return@forEach
@@ -857,7 +905,7 @@ object EpisodeScraper {
             val list = mutableListOf<Show>()
             try {
                 val url = if (page <= 1) "https://ffosta-tv.quest/moslslat.php" else "https://ffosta-tv.quest/moslslat.php?&page=$page"
-                val doc = fetchDocWithBypass(url) ?: fetchDocOrThrow(url)
+                val doc = fetchDocWithBypass(url) ?: return@async emptyList<Show>()
 
                 val items = doc.select("li.col-xs-6, li.col-sm-4, li.col-md-2, li[class*='col-']")
                 items.forEachIndexed { idx, el ->
@@ -912,7 +960,7 @@ object EpisodeScraper {
             val list = mutableListOf<Show>()
             try {
                 val url = if (page <= 1) "https://ffosta-tv.quest/category.php?cat=$category" else "https://ffosta-tv.quest/category.php?cat=$category&page=$page"
-                val doc = fetchDocWithBypass(url) ?: fetchDocOrThrow(url)
+                val doc = fetchDocWithBypass(url) ?: return@async emptyList<Show>()
 
                 val items = doc.select("li.col-xs-6, li.col-sm-4, li.col-md-2, li[class*='col-']")
                 items.forEachIndexed { idx, el ->
@@ -967,7 +1015,7 @@ object EpisodeScraper {
             val list = mutableListOf<Show>()
             try {
                 val url = "https://ffosta-tv.quest/"
-                val doc = fetchDocWithBypass(url) ?: fetchDocOrThrow(url)
+                val doc = fetchDocWithBypass(url) ?: return@async emptyList<Show>()
 
                 val items = doc.select("li.col-xs-6, li.col-sm-4, li.col-md-2, li[class*='col-'], .block-post, .block-series")
                 items.forEachIndexed { idx, el ->
@@ -1028,7 +1076,7 @@ object EpisodeScraper {
             try {
                 val enc = encodeQuery(query)
                 val url = "https://ffosta-tv.quest/search.php?keywords=$enc"
-                val doc = fetchDocWithBypass(url) ?: fetchDocOrThrow(url)
+                val doc = fetchDocWithBypass(url) ?: return@async emptyList<Show>()
 
                 val items = doc.select("li.col-xs-6, li.col-sm-4, li.col-md-2, li[class*='col-']")
                 items.forEachIndexed { idx, el ->

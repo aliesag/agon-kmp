@@ -1473,7 +1473,7 @@ class AppViewModel(private val prefsManager: PrefsManager) : ViewModel() {
         searchJob = viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
             _isSearchingRemote.value = true
             try {
-                delay(300) // debounce
+                delay(250) // debounce
 
                 val queryVariants = mutableSetOf(query.trim())
                 val normalized = Catalog.normalizeTitle(query)
@@ -1487,7 +1487,7 @@ class AppViewModel(private val prefsManager: PrefsManager) : ViewModel() {
                 val results = mutableListOf<Show>()
                 for (variant in queryVariants.take(2)) {
                     try {
-                        val r3ck = withTimeoutOrNull(8_000L) {
+                        val r3ck = withTimeoutOrNull(28_000L) {
                             com.agon.app.data.EpisodeScraper.search3cktv(variant, maxPages = 2)
                         }.orEmpty()
                         if (r3ck.isNotEmpty()) {
@@ -1497,7 +1497,7 @@ class AppViewModel(private val prefsManager: PrefsManager) : ViewModel() {
                         }
                     } catch (_: Throwable) { }
                     try {
-                        val rFosta = withTimeoutOrNull(8_000L) {
+                        val rFosta = withTimeoutOrNull(28_000L) {
                             com.agon.app.data.EpisodeScraper.searchFosta(variant, maxPages = 2)
                         }.orEmpty()
                         if (rFosta.isNotEmpty()) {

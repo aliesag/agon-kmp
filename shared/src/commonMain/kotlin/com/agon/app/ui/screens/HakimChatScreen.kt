@@ -112,7 +112,7 @@ fun HakimChatScreen(
             // Before answering: search remote for the mentioned show (matches Android behavior)
             try {
                 vm.performRemoteSearch(text)
-                kotlinx.coroutines.delay(3500) // give remote a moment
+                kotlinx.coroutines.delay(9000) // give remote a moment
             } catch (_: Throwable) { }
 
             val currentShows = vm.shows.value
