@@ -826,9 +826,8 @@ object EpisodeScraper {
                             val pageShows = mutableListOf<Show>()
                             try {
                                 val url = if (page == 1) "https://e.3cktv.com/?s=$encodedQuery" else "https://e.3cktv.com/page/$page/?s=$encodedQuery"
-                                val doc = fetchDocWithBypass(url) ?: return@withContext emptyList<Show>()
-
-                                doc.select("article.postEp, article.post, .block-post").forEach { el ->
+                                val doc = fetchDocWithBypass(url)
+                            doc?.select("article.postEp, article.post, .block-post")?.forEach { el ->
                                     val aTag = el.selectFirst("a") ?: return@forEach
                                     val title = aTag.attr("title").replace("قصة عشق", "").trim().ifEmpty { el.select(".title").text().replace("قصة عشق", "").trim() }
                                     val link = aTag.attr("href")
