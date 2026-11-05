@@ -1,0 +1,21 @@
+name: ios-ipa
+on: { workflow_dispatch: {}, push: { branches: [main] } }
+jobs:
+  build:
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: { distribution: temurin, java-version: 17 }
+      - run: brew install xcodegen
+      - run: cd iosApp && xcodegen
+      - name: Build unsigned
+        run: |
+          xcodebuild -project iosApp/iosApp.xcodeproj -scheme iosApp -configuration Release \
+            -sdk iphoneos -derivedDataPath build CODE_SIGNING_ALLOWED=NO CODE_SIGN_IDENTITY="" build
+      - name: Package ipa
+        run: |
+          mkdir Payload && cp -R build/Build/Products/Release-iphoneos/Agon.app Payload/
+          zip -qr Agon.ipa Payload
+      - uses: actions/upload-artifact@v4
+        with: { name: Agon-unsigned-ipa, path: Agon.ipa }
