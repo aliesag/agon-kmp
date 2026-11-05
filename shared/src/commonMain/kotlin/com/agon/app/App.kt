@@ -1,20 +1,254 @@
 package com.agon.app
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
-import androidx.compose.runtime.Composable
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavHostController
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
+import androidx.navigation.compose.rememberNavController
+import com.agon.app.data.PrefsManager
+import com.agon.app.data.matches.MatchesRepository
+import com.agon.app.ui.screens.*
 import com.agon.app.ui.theme.AgonAppTheme
+import com.agon.app.viewmodel.AppViewModel
+import com.agon.app.viewmodel.AppViewModelFactory
+import com.agon.app.viewmodel.MatchesViewModel
 
-// Entry composable shared by Android + iOS. Screens get wired in here as they leave /pending.
+private val NetflixRed = Color(0xFFE50914)
+private val BgColor = Color(0xFF0B0B0F)
+private val SurfaceColor = Color(0xFF16161C)
+private val Grey = Color(0xFF8C8C94)
+
 @Composable
 fun App() {
     AgonAppTheme {
-        Surface(Modifier.fillMaxSize()) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text("Agon KMP — shell up")
+        val prefs = remember { PrefsManager() }
+        val factory = remember { AppViewModelFactory(prefs) }
+        val vm: AppViewModel = viewModel(factory = factory)
+        val matchesVm: MatchesViewModel = viewModel()
+        val nav = rememberNavController()
+
+        val backStack by nav.currentBackStackEntryAsState()
+        val currentRoute = backStack?.destination?.route
+        val bottomRoutes = setOf("home", "matches", "mylist", "chat", "profile")
+        val showBottomBar = currentRoute in bottomRoutes
+
+        Surface(modifier = Modifier.fillMaxSize(), color = BgColor) {
+            Column(modifier = Modifier.fillMaxSize()) {
+                Box(modifier = Modifier.weight(1f)) {
+                    NavHost(navController = nav, startDestination = "home") {
+                        composable("home") {
+                            HomeScreen(
+                                vm = vm,
+                                matchesVm = matchesVm,
+                                onOpenMatches = { nav.navigate("matches") },
+                                onOpenShow = { id -> nav.navigate("detail/$id") },
+                                onPlay = { showId, epId ->
+                                    if (epId != null) nav.navigate("player/$showId/$epId")
+                                    else nav.navigate("detail/$showId")
+                                }
+                            )
+                        }
+                        composable("matches") {
+                            MatchesScreen(
+                                vm = matchesVm,
+                                onOpenMatch = { id -> nav.navigate("match_player/$id") }
+                            )
+                        }
+                        composable("match_player/{matchId}") { entry ->
+                            val id = entry.arguments?.getString("matchId").orEmpty()
+                            val matches = MatchesRepository.getInitialMatches()
+                            val match = matches.find { it.id == id } ?: matches.first()
+                            MatchPlayerScreen(
+                                match = match,
+                                otherMatches = matches.filter { it.id != match.id },
+                                onBack = { nav.popBackStack() },
+                                onSelectMatch = { m ->
+                                    nav.navigate("match_player/${m.id}") {
+                                        popUpTo("match_player/$id") { inclusive = true }
+                                    }
+                                }
+                            )
+                        }
+                        composable("search") {
+                            TopBarScreen(title = "البحث", onBack = { nav.popBackStack() }) {
+                                SearchScreen(
+                                    vm = vm,
+                                    onOpenShow = { id -> nav.navigate("detail/$id") }
+                                )
+                            }
+                        }
+                        composable("mylist") {
+                            MyListScreen(
+                                vm = vm,
+                                onOpenShow = { id -> nav.navigate("detail/$id") },
+                                onOpenDownloads = { nav.navigate("downloaded_episodes") }
+                            )
+                        }
+                        composable("downloaded_episodes") {
+                            ComingSoonScreen("الحلقات المحملة", "التنزيل الفعلي عبر URLSession في المرحلة القادمة") { nav.popBackStack() }
+                        }
+                        composable("shorts") {
+                            ComingSoonScreen("شورتس", "مشغّل الفيديو العمودي عبر AVPlayer في المرحلة القادمة") { nav.popBackStack() }
+                        }
+                        composable("chat") {
+                            TopBarScreen(title = "الدردشة", onBack = { nav.popBackStack() }, hideBack = true) {
+                                ChatScreen(vm = vm, onBack = { nav.popBackStack() })
+                            }
+                        }
+                        composable("hakim") {
+                            TopBarScreen(title = "حكيم", onBack = { nav.popBackStack() }, hideBack = true) {
+                                HakimChatScreen(vm = vm, onBack = { nav.popBackStack() })
+                            }
+                        }
+                        composable("profile") {
+                            ComingSoonScreen("المزيد", "الإعدادات والملف الشخصي في المرحلة القادمة") { nav.popBackStack() }
+                        }
+                        composable("detail/{id}") { entry ->
+                            val id = entry.arguments?.getString("id").orEmpty()
+                            DetailScreen(
+                                showId = id,
+                                vm = vm,
+                                onBack = { nav.popBackStack() },
+                                onPlay = { showId, epId ->
+                                    if (epId != null) nav.navigate("player/$showId/$epId")
+                                },
+                                onOpenShow = { sid -> nav.navigate("detail/$sid") },
+                                onNavigateToDownloads = { nav.navigate("downloaded_episodes") }
+                            )
+                        }
+                        composable("player/{id}/{episodeId}") {
+                            ComingSoonScreen("المشغّل", "مشغّل الفيديو الرئيسي عبر AVPlayer في المرحلة القادمة") { nav.popBackStack() }
+                        }
+                        composable("browse_all") {
+                            BrowseAllScreen(
+                                title = "تصفح الكل",
+                                shows = vm.shows.value,
+                                onOpenShow = { id -> nav.navigate("detail/$id") },
+                                onBack = { nav.popBackStack() }
+                            )
+                        }
+                    }
+                }
+
+                if (showBottomBar) {
+                    BottomNav(nav = nav, currentRoute = currentRoute)
+                }
             }
         }
+    }
+}
+
+@Composable
+private fun TopBarScreen(
+    title: String,
+    onBack: () -> Unit,
+    hideBack: Boolean = false,
+    content: @Composable () -> Unit
+) {
+    Column(modifier = Modifier.fillMaxSize().background(BgColor)) {
+        if (!hideBack) {
+            Row(
+                modifier = Modifier.fillMaxWidth().background(SurfaceColor)
+                    .padding(horizontal = 8.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(onClick = onBack) {
+                    Icon(
+                        Icons.AutoMirrored.Filled.ArrowBack,
+                        contentDescription = "رجوع",
+                        tint = Color.White
+                    )
+                }
+                Text(title, color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+            }
+        }
+        Box(modifier = Modifier.weight(1f)) { content() }
+    }
+}
+
+@Composable
+private fun BottomNav(nav: NavHostController, currentRoute: String?) {
+    val items = listOf(
+        Triple("mylist", "حلقات محملة", Icons.Filled.Download),
+        Triple("matches", "المباريات", Icons.Filled.SportsSoccer),
+        Triple("home", "الرئيسية", Icons.Filled.Home),
+        Triple("shorts", "شورتس", Icons.Filled.PlayCircle),
+        Triple("chat", "الدردشة", Icons.Filled.Forum),
+        Triple("profile", "المزيد", Icons.Filled.Menu)
+    )
+    Surface(color = SurfaceColor, shadowElevation = 8.dp) {
+        Row(
+            modifier = Modifier.fillMaxWidth().height(64.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceEvenly
+        ) {
+            items.forEach { (route, label, icon) ->
+                val selected = currentRoute == route
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier
+                        .weight(1f).fillMaxHeight()
+                        .clickable {
+                            nav.navigate(route) {
+                                popUpTo("home") { inclusive = route == "home" }
+                                launchSingleTop = true
+                            }
+                        },
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Icon(
+                        icon,
+                        contentDescription = label,
+                        tint = if (selected) NetflixRed else Grey,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        label,
+                        color = if (selected) Color.White else Grey,
+                        fontSize = 10.sp,
+                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Normal
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ComingSoonScreen(title: String, description: String, onBack: () -> Unit) {
+    Column(
+        modifier = Modifier.fillMaxSize().background(BgColor).padding(24.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Icon(Icons.Filled.Info, contentDescription = null, tint = NetflixRed, modifier = Modifier.size(56.dp))
+        Spacer(Modifier.height(16.dp))
+        Text(title, color = Color.White, fontSize = 24.sp, fontWeight = FontWeight.Black)
+        Spacer(Modifier.height(8.dp))
+        Text(description, color = Grey, fontSize = 14.sp, textAlign = TextAlign.Center)
+        Spacer(Modifier.height(24.dp))
+        Button(
+            onClick = onBack,
+            colors = ButtonDefaults.buttonColors(containerColor = NetflixRed),
+            shape = RoundedCornerShape(10.dp)
+        ) { Text("رجوع", color = Color.White) }
     }
 }
