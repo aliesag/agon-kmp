@@ -1,17 +1,23 @@
 package com.agon.app.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -19,17 +25,21 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil3.compose.AsyncImage
 import com.agon.app.data.Catalog
 import com.agon.app.data.HakimConfigManager
 import com.agon.app.data.Show
 import com.agon.app.viewmodel.AppViewModel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-private val NetflixRed = Color(0xFFE50914)
-private val Gold = Color(0xFFF5C518)
+private val HakimRed = Color(0xFFE50914)
+private val HakimGold = Color(0xFFFFC107)
 
 data class HakimMessage(
     val id: Long,
@@ -41,9 +51,7 @@ data class HakimMessage(
 private fun findLastDiscussedShowInKmp(messages: List<HakimMessage>, allShows: List<Show>): Show? {
     for (msg in messages.asReversed()) {
         val ls = msg.linkedShow ?: continue
-        // try to find a fresher version in allShows
-        val fresh = allShows.firstOrNull { it.id == ls.id || it.title.equals(ls.title, ignoreCase = true) }
-        return fresh ?: ls
+        return allShows.firstOrNull { it.id == ls.id || it.title.equals(ls.title, ignoreCase = true) } ?: ls
     }
     return null
 }
@@ -59,54 +67,46 @@ fun HakimChatScreen(
     var messages by remember { mutableStateOf<List<HakimMessage>>(emptyList()) }
     var draft by remember { mutableStateOf("") }
     var isSending by remember { mutableStateOf(false) }
+    var thinkingStatus by remember { mutableStateOf("حكيم يكتب...") }
     val listState = rememberLazyListState()
     val scope = rememberCoroutineScope()
 
-    LaunchedEffect(Unit) {
-        if (messages.isEmpty()) {
-            messages = listOf(
-                HakimMessage(
-                    id = 0,
-                    text = "أهلاً بك 👋 أنا حكيم، مستشارك السينمائي في حكايتنا. اسألني عن أي مسلسل أو فيلم، أو قل لي ماذا تحب وأقترح لك ما يناسبك.",
-                    isUser = false
-                )
-            )
-        }
+    fun buildSystemPrompt(matched: Show?): String = if (matched != null) {
+        """
+أنت حكيم ✨، المستشار والناقد الفني والذكي الرسمي لتطبيق 'حكايتنا' لمشاهدة الأفلام والمسلسلات.
+تتحدث بذكاء وسلاسة بأسلوب محفز ومرح مع رموز تعبيرية (Emojis) جذابة باللغة العربية.
+
+المعلومات الخاصة بالعمل المرفق مع بطاقة المشاهدة للمستخدم:
+- اسم العمل: "${matched.title}"
+- التصنيف: ${matched.genres.joinToString("، ")}
+- سنة الإصدار: ${matched.year}
+- التقييم الحالي: ${formatImdb(matched.imdb)} من 10 ⭐
+- القصة: "${matched.description.ifEmpty { "عمل درامي وترفيهي مميز يعرض بجودة عالية على حكايتنا" }}"
+
+⚠️ تعليمات صارمة للمستشار حكيم:
+1. إذا كان سؤال المستخدم عن تقييم العمل، أو قصته، أو أبطاله، أجب بدقة وعاطفة وإيجاز عن "${matched.title}".
+2. لا تخلط أبداً بين هذا العمل وأي عمل آخر، واستند فقط إلى البيانات الرسمية المرفقة أعلاه.
+3. اذكر دائماً اسم العمل بوضوح ووجه المستخدم بحماس للضغط على زر (اذهب للمشاهدة) الموجود في بطاقة العمل أسفل ردك مباشرة.
+4. كن مختصراً، ذكياً، وواضحاً وخالياً تماماً من أي رموز برمجية أو نصوص شاذة.
+        """.trimIndent()
+    } else {
+        val sampleShows = shows.filter { !it.isMovie }.take(10).joinToString("، ") { it.title }
+        """
+أنت حكيم ✨، المستشار والناقد الفني والذكي لتطبيق 'حكايتنا'.
+تحدث بأسلوب ممتع، ترحيبي، وذكي مع إدراج Emojis جذابة.
+إذا رحب بك المستخدم (مثل: سلام عليكم، أهلاً، مرحباً)، رد عليه بتحية حارة وودودة واعرض عليه مساعدتك واقتراح أفضل المسلسلات له.
+إذا سألك عن اقتراحات عامة، اقترح له أعمالاً مميزة وحصرية من مكتبتنا مثل: $sampleShows.
+لا ترفق بطاقة عمل إلا عندما يتم تخصيص مسلسل أو فيلم محدد في المحادثة.
+        """.trimIndent()
     }
 
-    fun buildSystemPrompt(matched: Show?): String {
-        return if (matched != null) {
-            val imdbFormatted = formatImdb(matched.imdb)
-            """
-            أنت حكيم ✨، المستشار والناقد الفني والذكي الرسمي لتطبيق 'حكايتنا' لمشاهدة الأفلام والمسلسلات.
-            تتحدث بذكاء وسلاسة بأسلوب محفز ومرح مع رموز تعبيرية (Emojis) جذابة باللغة العربية.
-
-            المعلومات الخاصة بالعمل المرفق مع بطاقة المشاهدة للمستخدم:
-            - اسم العمل: "${matched.title}"
-            - التصنيف: ${matched.genres.joinToString("، ")}
-            - سنة الإصدار: ${matched.year}
-            - التقييم الحالي: $imdbFormatted من 10 ⭐
-            - القصة: "${matched.description.ifEmpty { "عمل درامي وترفيهي مميز يعرض بجودة عالية على حكايتنا" }}"
-
-            ⚠️ تعليمات صارمة:
-            1. إذا كان سؤال المستخدم عن تقييم العمل، أو قصته، أو أبطاله، أجب بدقة وعاطفة عن "${matched.title}".
-            2. أذكر دائماً اسم العمل بوضوح ووجه المستخدم بحماس إلى زر (اذهب للمشاهدة) الموجود ببطاقة العمل أسفل رسالتك فوراً!
-            3. كن مختصراً، ذكياً، وواضحاً بدون أي رموز غريبة أو سطور برمجية.
-            """.trimIndent()
-        } else {
-            val sampleShows = shows.filter { !it.isMovie }.take(10).joinToString("، ") { it.title }
-            """
-            أنت حكيم ✨، المستشار والناقد الفني والذكي لتطبيق 'حكايتنا'.
-            تحدث بأسلوب ممتع، ترحيبي، وذكي مع إدراج Emojis جذابة.
-            إذا رحب بك المستخدم (مثل: سلام عليكم، أهلاً، مرحباً)، رد عليه بتحية حارة وودودة واعرض عليه مساعدتك واقتراح أفضل المسلسلات له.
-            إذا سألك عن اقتراحات، اقترح له أعمالاً مميزة من مكتبتنا مثل: $sampleShows.
-            لا ترفق بطاقة عمل إلا عندما يتم تخصيص مسلسل محدد في المحادثة.
-            """.trimIndent()
-        }
+    fun startNewChat() {
+        messages = emptyList()
+        draft = ""
     }
 
-    fun send() {
-        val text = draft.trim()
+    fun send(textOverride: String? = null) {
+        val text = (textOverride ?: draft).trim()
         if (text.isEmpty() || isSending) return
         draft = ""
 
@@ -117,72 +117,36 @@ fun HakimChatScreen(
         )
         messages = messages + userMsg
         isSending = true
-
-        // Show a live status message while we fetch
-        val statusId = (messages.maxOfOrNull { it.id } ?: 0) + 1
-        messages = messages + HakimMessage(
-            id = statusId,
-            text = "🔍 جاري البحث عن العمل...",
-            isUser = false
-        )
+        thinkingStatus = "حكيم يفكر..."
 
         scope.launch {
+            try { listState.animateScrollToItem(messages.lastIndex) } catch (_: Exception) { }
+
             val isGreeting = try { Catalog.isGeneralGreetingOrConversation(text) } catch (_: Throwable) { false }
             val isFollowUp = try { Catalog.isFollowUpAboutContextShow(text) } catch (_: Throwable) { false }
 
-            val currentMessages = messages.toList()
-            val currentShowsPre = vm.shows.value
-
-            // 1. Follow-up: reuse the last show from context
             val contextShow = if (isFollowUp && !isGreeting) {
-                try { findLastDiscussedShowInKmp(currentMessages.filter { it.id != statusId }, currentShowsPre) } catch (_: Throwable) { null }
+                try { findLastDiscussedShowInKmp(messages, vm.shows.value) } catch (_: Throwable) { null }
             } else null
 
-            // 2. Direct local match
             val localMatch = if (contextShow == null && !isGreeting) {
-                try { Catalog.findMatchingShow(text, currentShowsPre) } catch (_: Throwable) { null }
+                try { Catalog.findMatchingShow(text, vm.shows.value) } catch (_: Throwable) { null }
             } else contextShow
 
-            // 3. If still not found and not a greeting: explicit remote search
-            val remoteMatch = if (localMatch == null && !isGreeting && !isFollowUp) {
-                try {
-                    val cleanSearch = text
-                        .replace("مسلسل", "").replace("فيلم", "").replace("فلم", "")
-                        .replace("عطني", "").replace("ابي", "").replace("أبيه", "")
-                        .replace("شاهد", "").replace("مشاهدة", "").replace("قصة", "")
-                        .trim()
-                    if (cleanSearch.length >= 2) {
-                        vm.searchShowRemotely(cleanSearch)
-                    } else null
-                } catch (_: Throwable) { null }
-            } else null
-
-            val matched = localMatch ?: remoteMatch
-
-            // 4. Background broader search (populates catalog for later)
-            if (!isGreeting) {
-                try {
-                    vm.performRemoteSearch(text)
-                    kotlinx.coroutines.delay(2500)
-                } catch (_: Throwable) { }
+            // Remote fallback
+            if (localMatch == null && !isGreeting && !isFollowUp) {
+                thinkingStatus = "🔍 جاري البحث عن العمل..."
+                try { vm.performRemoteSearch(text) } catch (_: Throwable) { }
+                delay(4000)
             }
 
-            // Remove the status bubble
-            messages = messages.filterNot { it.id == statusId }
-
-            // Re-try matching with possibly-enriched catalog
-            val finalMatched = matched ?: if (!isGreeting) {
-                try {
-                    val currentShows = vm.shows.value
-                    Catalog.findMatchingShow(text, currentShows)
-                        ?: currentShows.firstOrNull { sh ->
-                            sh.title.length >= 4 && text.contains(sh.title.substring(0, minOf(8, sh.title.length)), ignoreCase = true)
-                        }
-                } catch (_: Throwable) { null }
+            val finalMatch = localMatch ?: if (!isGreeting) {
+                try { Catalog.findMatchingShow(text, vm.shows.value) } catch (_: Throwable) { null }
             } else null
 
-            val prompt = buildSystemPrompt(finalMatched)
+            thinkingStatus = "حكيم يجهز لك الرد..."
 
+            val prompt = buildSystemPrompt(finalMatch)
             val reply = try {
                 HakimConfigManager.askHakim(text, systemPrompt = prompt)
                     ?: "تعذر الاتصال بحكيم حالياً، حاول مجدداً بعد قليل."
@@ -190,176 +154,327 @@ fun HakimChatScreen(
                 "تعذر الاتصال بحكيم: ${e.message ?: "خطأ غير معروف"}"
             }
 
-            val cleaned = reply
-                .replace("\\n", "\n")
-                .replace("\\\"", "\"")
-                .trim()
+            val cleaned = reply.replace("\\n", "\n").replace("\\\"", "\"").trim()
 
-            val aiMsg = HakimMessage(
+            messages = messages + HakimMessage(
                 id = (messages.maxOfOrNull { it.id } ?: 0) + 1,
                 text = cleaned,
                 isUser = false,
-                linkedShow = finalMatched
+                linkedShow = finalMatch
             )
-            messages = messages + aiMsg
             isSending = false
-            try { listState.animateScrollToItem(messages.size - 1) } catch (_: Exception) {}
+            try { listState.animateScrollToItem(messages.lastIndex) } catch (_: Exception) { }
         }
     }
 
     Column(modifier = Modifier.fillMaxSize().background(Color(0xFF0B0B0F))) {
-        // Header
+
+        // ═══════ Top Bar (matched Android) ═══════
         Row(
-            modifier = Modifier.fillMaxWidth().background(Color(0xFF16161C))
-                .padding(horizontal = 12.dp, vertical = 12.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFF131620))
+                .padding(horizontal = 10.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onBack) {
-                Icon(Icons.Filled.ChevronLeft, contentDescription = "رجوع", tint = Color.White)
+                Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "رجوع", tint = Color.White)
             }
-            Box(
-                modifier = Modifier.size(32.dp).clip(RoundedCornerShape(50))
-                    .background(Brush.linearGradient(listOf(Gold, NetflixRed))),
-                contentAlignment = Alignment.Center
-            ) {
-                Text("ح", color = Color.White, fontWeight = FontWeight.Black, fontSize = 16.sp)
-            }
-            Spacer(Modifier.width(10.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text("حكيم", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 17.sp)
-                Text("مستشارك السينمائي", color = Color(0xFF8C8C94), fontSize = 11.sp)
-            }
-            IconButton(onClick = { messages = emptyList() }) {
-                Icon(Icons.Filled.Delete, contentDescription = "مسح", tint = Color(0xFF8C8C94))
-            }
-        }
 
-        // Messages
-        LazyColumn(
-            state = listState,
-            modifier = Modifier.weight(1f),
-            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            items(messages, key = { it.id }) { msg ->
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = if (msg.isUser) Arrangement.End else Arrangement.Start
-                    ) {
-                        if (!msg.isUser) {
-                            Box(
-                                modifier = Modifier.size(28.dp).clip(RoundedCornerShape(50))
-                                    .background(Brush.linearGradient(listOf(Gold, NetflixRed))),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text("ح", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
-                            }
-                            Spacer(Modifier.width(6.dp))
-                        }
+            // New chat button
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(18.dp))
+                    .background(Color(0xFF1E222A))
+                    .border(1.dp, Color(0xFF2E3440), RoundedCornerShape(18.dp))
+                    .clickable { startNewChat() }
+                    .padding(horizontal = 10.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Filled.Add, contentDescription = "محادثة جديدة", tint = Color(0xFFFF5252), modifier = Modifier.size(15.dp))
+                Spacer(Modifier.width(4.dp))
+                Text("محادثة جديدة", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            }
+
+            Spacer(Modifier.weight(1f))
+
+            // Profile block
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Column(horizontalAlignment = Alignment.End) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(
                             modifier = Modifier
-                                .widthIn(max = 280.dp)
-                                .clip(RoundedCornerShape(14.dp))
-                                .background(if (msg.isUser) NetflixRed else Color(0xFF23232B))
-                                .padding(horizontal = 12.dp, vertical = 10.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(Color(0xFF4A1515))
+                                .padding(horizontal = 4.dp, vertical = 2.dp)
                         ) {
-                            Text(msg.text, color = Color.White, fontSize = 14.sp)
+                            Text("مستشار\nالدراما", color = Color(0xFFFF2D3A), fontSize = 8.sp, fontWeight = FontWeight.Bold, textAlign = TextAlign.Center, lineHeight = 10.sp)
                         }
+                        Spacer(Modifier.width(6.dp))
+                        Text("حكيم الذكي", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Black)
                     }
+                    Spacer(Modifier.height(2.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.FlashOn, contentDescription = null, tint = HakimGold, modifier = Modifier.size(12.dp))
+                        Spacer(Modifier.width(2.dp))
+                        Text("متصل الآن ومستعد لمساعدتك", color = Color.LightGray, fontSize = 10.sp)
+                    }
+                }
+                Spacer(Modifier.width(10.dp))
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(CircleShape)
+                        .background(Brush.linearGradient(listOf(Color(0xFFE91E63), Color(0xFF9C27B0)))),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Filled.AutoFixHigh, contentDescription = "Avatar", tint = Color.White, modifier = Modifier.size(24.dp))
+                    Box(
+                        modifier = Modifier
+                            .size(10.dp)
+                            .align(Alignment.BottomEnd)
+                            .offset(x = (-2).dp, y = (-2).dp)
+                            .clip(CircleShape)
+                            .background(Color(0xFF00E676))
+                            .border(1.5.dp, Color(0xFF131620), CircleShape)
+                    )
+                }
+            }
+        }
 
-                    // Linked show card (like Android)
-                    val linked = msg.linkedShow
-                    if (linked != null) {
-                        Spacer(Modifier.height(6.dp))
-                        Row(
+        // ═══════ Body ═══════
+        Box(modifier = Modifier.weight(1f).fillMaxWidth()) {
+            if (messages.isEmpty() && !isSending) {
+                // Welcome + Suggestion chips
+                Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(horizontal = 20.dp)
+                    ) {
+                        Box(
                             modifier = Modifier
-                                .padding(start = 34.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .background(Color(0xFF16161C))
-                                .clickable { onOpenShow(linked.id) }
-                                .padding(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                                .size(60.dp)
+                                .clip(CircleShape)
+                                .background(HakimRed.copy(alpha = 0.2f)),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Box(
-                                modifier = Modifier.size(width = 46.dp, height = 66.dp)
-                                    .clip(RoundedCornerShape(6.dp))
-                                    .background(Color(0xFF23232B))
-                            ) {
-                                AsyncImage(
-                                    model = linked.poster,
-                                    contentDescription = linked.title,
-                                    contentScale = ContentScale.Crop,
-                                    modifier = Modifier.fillMaxSize()
-                                )
-                            }
-                            Spacer(Modifier.width(10.dp))
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(linked.title, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1)
-                                Text(
-                                    "${linked.year} • ${linked.rating}",
-                                    color = Color(0xFF8C8C94), fontSize = 11.sp
-                                )
-                                Spacer(Modifier.height(4.dp))
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Filled.Star, contentDescription = null, tint = Gold, modifier = Modifier.size(12.dp))
-                                    Spacer(Modifier.width(2.dp))
-                                    Text(formatImdb(linked.imdb), color = Gold, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                                }
-                            }
-                            Spacer(Modifier.width(8.dp))
-                            Box(
+                            Icon(Icons.Filled.Forum, contentDescription = null, tint = HakimRed, modifier = Modifier.size(32.dp))
+                        }
+                        Spacer(Modifier.height(16.dp))
+                        Text(
+                            "دردش مع حكيم منصة حكايتنا!",
+                            color = Color.White,
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Black,
+                            textAlign = TextAlign.Center
+                        )
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "اسأل حكيم عن تفاصيل الفيلم الذي تفكر فيه، أو ارفع لقطة شاشة من مشهد يعجبك، أو تحدث صوتياً لمعرفة العمل فوراً!",
+                            color = Color.LightGray,
+                            fontSize = 12.sp,
+                            textAlign = TextAlign.Center,
+                            lineHeight = 18.sp
+                        )
+                        Spacer(Modifier.height(32.dp))
+
+                        val suggestions = listOf(
+                            "اقترح لي فيلم تركي رومانسي وحزين 💖",
+                            "عندكم فيلم المتوحش؟ عطني قصته 🐺",
+                            "أبي فيلم أكشن وحرب تاريخي رهيب ⚔️",
+                            "دلني على فيلم درامي عائلي راقي 📺"
+                        )
+
+                        suggestions.forEach { suggestion ->
+                            Row(
                                 modifier = Modifier
-                                    .clip(RoundedCornerShape(8.dp))
-                                    .background(NetflixRed)
-                                    .clickable { onOpenShow(linked.id) }
-                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                                    .fillMaxWidth()
+                                    .padding(vertical = 6.dp)
+                                    .clip(RoundedCornerShape(24.dp))
+                                    .background(Color(0xFF1E1E1E))
+                                    .clickable { send(suggestion) }
+                                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text("اذهب للمشاهدة", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = null, tint = Color.Gray, modifier = Modifier.size(20.dp))
+                                Text(suggestion, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Medium)
                             }
                         }
                     }
                 }
-            }
-            if (isSending) {
-                item {
-                    Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Start) {
-                        CircularProgressIndicator(color = Gold, strokeWidth = 2.dp, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text("حكيم يكتب…", color = Color(0xFF8C8C94), fontSize = 12.sp)
+            } else {
+                LazyColumn(
+                    state = listState,
+                    modifier = Modifier.fillMaxSize().padding(horizontal = 12.dp),
+                    contentPadding = PaddingValues(top = 12.dp, bottom = 12.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(messages, key = { it.id }) { msg ->
+                        MessageItem(msg = msg, onOpenShow = onOpenShow)
+                    }
+                    if (isSending) {
+                        item { HakimThinkingItem(statusText = thinkingStatus) }
                     }
                 }
             }
         }
 
-        // Input
+        // ═══════ Input Bar ═══════
         Row(
-            modifier = Modifier.fillMaxWidth().background(Color(0xFF16161C))
-                .padding(horizontal = 8.dp, vertical = 8.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .background(Color(0xFF131620))
+                .padding(horizontal = 10.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             OutlinedTextField(
                 value = draft,
                 onValueChange = { draft = it },
                 modifier = Modifier.weight(1f),
-                placeholder = { Text("اسأل حكيم…", color = Color(0xFF8C8C94)) },
+                placeholder = { Text("اسأل حكيم…", color = Color(0xFF8C8C94), fontSize = 14.sp) },
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = Color(0xFF333333),
-                    unfocusedBorderColor = Color(0xFF333333),
+                    focusedBorderColor = Color(0xFF2E3440),
+                    unfocusedBorderColor = Color(0xFF2E3440),
+                    focusedContainerColor = Color(0xFF1E222A),
+                    unfocusedContainerColor = Color(0xFF1E222A),
                     focusedTextColor = Color.White,
                     unfocusedTextColor = Color.White
                 ),
-                shape = RoundedCornerShape(20.dp),
-                enabled = !isSending
+                shape = RoundedCornerShape(24.dp),
+                enabled = !isSending,
+                maxLines = 4
             )
-            Spacer(Modifier.width(4.dp))
-            IconButton(onClick = { send() }, enabled = draft.isNotBlank() && !isSending) {
+            Spacer(Modifier.width(6.dp))
+            Box(
+                modifier = Modifier
+                    .size(46.dp)
+                    .clip(CircleShape)
+                    .background(if (draft.isNotBlank() && !isSending) HakimRed else Color(0xFF2E3440))
+                    .clickable(enabled = draft.isNotBlank() && !isSending) { send() },
+                contentAlignment = Alignment.Center
+            ) {
                 Icon(
                     Icons.Filled.Send,
                     contentDescription = "إرسال",
-                    tint = if (draft.isNotBlank() && !isSending) Gold else Color(0xFF44444C)
+                    tint = Color.White,
+                    modifier = Modifier.size(20.dp)
                 )
             }
+        }
+    }
+}
+
+@Composable
+private fun MessageItem(msg: HakimMessage, onOpenShow: (String) -> Unit) {
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = if (msg.isUser) Arrangement.End else Arrangement.Start
+        ) {
+            if (!msg.isUser) {
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .clip(CircleShape)
+                        .background(Brush.linearGradient(listOf(Color(0xFFE91E63), Color(0xFF9C27B0)))),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(Icons.Filled.AutoFixHigh, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+                }
+                Spacer(Modifier.width(8.dp))
+            }
+            Box(
+                modifier = Modifier
+                    .widthIn(max = 290.dp)
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(if (msg.isUser) HakimRed else Color(0xFF1E222A))
+                    .padding(horizontal = 14.dp, vertical = 10.dp)
+            ) {
+                Text(msg.text, color = Color.White, fontSize = 14.sp, lineHeight = 21.sp)
+            }
+        }
+
+        val linked = msg.linkedShow
+        if (linked != null && !msg.isUser) {
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier
+                    .padding(start = 40.dp)
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(Color(0xFF1A1D29))
+                    .border(1.dp, Color(0xFF2E3440), RoundedCornerShape(14.dp))
+                    .clickable { onOpenShow(linked.id) }
+                    .padding(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(width = 56.dp, height = 80.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(Color(0xFF23232B))
+                ) {
+                    AsyncImage(
+                        model = linked.poster,
+                        contentDescription = linked.title,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                }
+                Spacer(Modifier.width(10.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(linked.title, color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Spacer(Modifier.height(2.dp))
+                    Text("${linked.year} • ${linked.rating}", color = Color(0xFF8C8C94), fontSize = 11.sp)
+                    Spacer(Modifier.height(4.dp))
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Filled.Star, contentDescription = null, tint = HakimGold, modifier = Modifier.size(12.dp))
+                        Spacer(Modifier.width(2.dp))
+                        Text(formatImdb(linked.imdb), color = HakimGold, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+                Spacer(Modifier.width(8.dp))
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(HakimRed)
+                        .clickable { onOpenShow(linked.id) }
+                        .padding(horizontal = 10.dp, vertical = 6.dp)
+                ) {
+                    Text("اذهب للمشاهدة", color = Color.White, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HakimThinkingItem(statusText: String) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.Start,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(32.dp)
+                .clip(CircleShape)
+                .background(Brush.linearGradient(listOf(Color(0xFFE91E63), Color(0xFF9C27B0)))),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(Icons.Filled.AutoFixHigh, contentDescription = null, tint = Color.White, modifier = Modifier.size(18.dp))
+        }
+        Spacer(Modifier.width(8.dp))
+        Row(
+            modifier = Modifier
+                .clip(RoundedCornerShape(16.dp))
+                .background(Color(0xFF1E222A))
+                .padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            CircularProgressIndicator(color = HakimGold, strokeWidth = 2.dp, modifier = Modifier.size(14.dp))
+            Spacer(Modifier.width(8.dp))
+            Text(statusText, color = Color.LightGray, fontSize = 12.sp)
         }
     }
 }
