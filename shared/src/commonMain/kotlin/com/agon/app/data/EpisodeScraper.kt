@@ -2,11 +2,14 @@ package com.agon.app.data
 
 import com.fleeksoft.ksoup.Ksoup
 import com.fleeksoft.ksoup.nodes.Document
-import com.fleeksoft.ksoup.nodes.Element
+import com.agon.app.Http
+import kotlinx.serialization.json.contentOrNull
+import org.jsoup.nodes.Element
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
-import com.agon.app.Http
 
 object EpisodeScraper {
 
@@ -16,19 +19,15 @@ object EpisodeScraper {
         "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"
     )
 
-    private suspend fun fetchDoc(url: String, referrer: String? = null): Document? {
-        return try {
-            val headers = mutableMapOf(
-                "User-Agent" to UA_LIST[0],
-                "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-                "Accept-Language" to "ar-SA,ar;q=0.9,en-US;q=0.8,en;q=0.7",
-                "Cache-Control" to "no-cache"
-            )
-            if (!referrer.isNullOrBlank()) headers["Referer"] = referrer
-            Ksoup.parse(Http.get(url, headers))
-        } catch (e: Exception) {
-            null
-        }
+    private suspend fun fetchDocOrThrow(url: String, referrer: String? = null): Document {
+        val headers = mutableMapOf(
+            "User-Agent" to UA_LIST[0],
+            "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            "Accept-Language" to "ar-SA,ar;q=0.9,en-US;q=0.8,en;q=0.7",
+            "Cache-Control" to "no-cache"
+        )
+        if (!referrer.isNullOrBlank()) headers["Referer"] = referrer
+        return Ksoup.parse(Http.get(url, headers))
     }
 
     private fun hostOf(url: String): String? = try {
@@ -36,6 +35,24 @@ object EpisodeScraper {
         noScheme.substringBefore("/").substringBefore("?").ifBlank { null }
     } catch (_: Exception) { null }
 
+    private fun schemeOf(url: String): String = try {
+        if (url.contains("://")) url.substringBefore("://") else "https"
+    } catch (_: Exception) { "https" }
+
+    private fun encodeQuery(s: String): String {
+        val hex = "0123456789ABCDEF"
+        val sb = StringBuilder()
+        for (b in s.encodeToByteArray()) {
+            val v = b.toInt() and 0xFF
+            when {
+                (v in 'A'.code..'Z'.code) || (v in 'a'.code..'z'.code) || (v in '0'.code..'9'.code) ||
+                    v == '-'.code || v == '_'.code || v == '.'.code || v == '~'.code -> sb.append(v.toChar())
+                v == ' '.code -> sb.append('+')
+                else -> sb.append('%').append(hex[v shr 4]).append(hex[v and 0xF])
+            }
+        }
+        return sb.toString()
+    }
 
     private const val B64_ALPHABET = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/"
 
@@ -84,28 +101,8 @@ object EpisodeScraper {
         } catch (e: Exception) { emptyMap() }
     }
 
-    private fun encodeQuery(s: String): String {
-        val hex = "0123456789ABCDEF"
-        val sb = StringBuilder()
-        for (b in s.encodeToByteArray()) {
-            val v = b.toInt() and 0xFF
-            when {
-                (v in 'A'.code..'Z'.code) || (v in 'a'.code..'z'.code) || (v in '0'.code..'9'.code) ||
-                    v == '-'.code || v == '_'.code || v == '.'.code || v == '~'.code -> sb.append(v.toChar())
-                v == ' '.code -> sb.append('+')
-                else -> sb.append('%').append(hex[v shr 4]).append(hex[v and 0xF])
-            }
-        }
-        return sb.toString()
-    }
-
     private suspend fun fetchDocWithBypass(url: String, referrer: String? = null): Document? {
-        val userAgents = listOf(
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-            "Mozilla/5.0 (Linux; Android 10; K) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Mobile Safari/537.36",
-            "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)"
-        )
-        for (ua in userAgents) {
+        for (ua in UA_LIST) {
             try {
                 val headers = mutableMapOf(
                     "User-Agent" to ua,
@@ -116,15 +113,13 @@ object EpisodeScraper {
                 if (!referrer.isNullOrBlank()) headers["Referer"] = referrer
                 val doc = Ksoup.parse(Http.get(url, headers))
                 val html = doc.html()
-                if (!html.contains("you have been blocked") && 
-                    !html.contains("You are unable to access") && 
+                if (!html.contains("you have been blocked") &&
+                    !html.contains("You are unable to access") &&
                     !html.contains("Sorry, you have been blocked") &&
                     !html.contains("cf-browser-verification")) {
                     return doc
                 }
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
+            } catch (e: Exception) { /* try next UA */ }
         }
         return null
     }
@@ -181,11 +176,11 @@ object EpisodeScraper {
     }
 
     suspend fun scrapeSeriesPage(page: Int, domain: String = "e.3cktv.com"): List<Show> {
-        return run {
+        return withContext(Dispatchers.Default) {
             val shows = mutableListOf<Show>()
             try {
                 val url = if (page <= 1) "https://$domain/video/series/" else "https://$domain/video/series/page/$page/"
-                val doc = fetchDocWithBypass(url) ?: fetchDoc(url)
+                val doc = fetchDocWithBypass(url) ?: fetchDocOrThrow(url)
 
                 val elements = doc.select("article.postEp, article.post").ifEmpty { doc.select(".block-post") }
                 elements.forEachIndexed { index, el ->
@@ -238,7 +233,7 @@ object EpisodeScraper {
     }
 
     suspend fun getEpisodesForShow(showUrl: String): List<Episode> {
-        return run {
+        return withContext(Dispatchers.Default) {
             val episodes = mutableListOf<Episode>()
             try {
                 if (showUrl.isBlank() || Catalog.isTashShow("", showUrl, "")) return@withContext emptyList()
@@ -251,7 +246,7 @@ object EpisodeScraper {
 
                 val showSlug = showUrl.removeSuffix("/").substringAfterLast("/").replace(".html", "").replace(Regex("[^a-zA-Z0-9_]"), "_").ifEmpty { "show" }
 
-                val doc = fetchDocWithBypass(targetUrl) ?: fetchDoc(targetUrl)
+                val doc = fetchDocWithBypass(targetUrl) ?: fetchDocOrThrow(targetUrl)
 
                 val pageTitle = doc.title().lowercase()
                 if (pageTitle.contains("404") || pageTitle.contains("not found") || pageTitle.contains("غير موجود")) {
@@ -438,11 +433,11 @@ object EpisodeScraper {
                         alooyEpButtons.forEachIndexed { index, el ->
                             var link = el.attr("href")
                             if (link.startsWith("/")) {
-                                val uri = (hostOf(targetUrl) ?: "")
-                                link = "${uri.scheme}://${uri.host}$link"
+                                val _uriSrc = targetUrl
+                                link = "${schemeOf(_uriSrc)}://${hostOf(_uriSrc) ?: ""}$link"
                             } else if (!link.startsWith("http")) {
-                                val uri = (hostOf(targetUrl) ?: "")
-                                link = "${uri.scheme}://${uri.host}/${link.removePrefix("/")}"
+                                val _uriSrc = targetUrl
+                                link = "${schemeOf(_uriSrc)}://${hostOf(_uriSrc) ?: ""}/${link.removePrefix("/")}"
                             }
                             val rawText = el.text().trim()
                             val epNum = rawText.replace("Ep#", "").replace("Ep", "").replace("الحلقة", "").trim().ifEmpty { (index + 1).toString() }
@@ -551,8 +546,8 @@ object EpisodeScraper {
                             if (poster.startsWith("//")) {
                                 poster = "https:$poster"
                             } else if (poster.startsWith("/")) {
-                                val uri = (hostOf(showUrl) ?: "")
-                                poster = "${uri.scheme}://${uri.host}$poster"
+                                val _uriSrc = showUrl
+                                poster = "${schemeOf(_uriSrc)}://${hostOf(_uriSrc) ?: ""}$poster"
                             }
                             poster = TmdbHelper.cleanPosterUrl(poster)
                         }
@@ -576,8 +571,8 @@ object EpisodeScraper {
                     alooyEpButtons.forEachIndexed { index, el ->
                         var link = el.attr("href")
                         if (link.startsWith("/")) {
-                            val uri = (hostOf(targetUrl) ?: "")
-                            link = "${uri.scheme}://${uri.host}$link"
+                            val _uriSrc = targetUrl
+                            link = "${schemeOf(_uriSrc)}://${hostOf(_uriSrc) ?: ""}$link"
                         }
                         val rawText = el.text().trim()
                         val epNum = rawText.replace("Ep#", "").replace("Ep", "").replace("الحلقة", "").trim().ifEmpty { (index + 1).toString() }
@@ -626,7 +621,7 @@ object EpisodeScraper {
     }
 
     suspend fun scrapeAlooyGenreMultiPage(genreSlug: String, genreName: String, maxPages: Int = 3): List<Show> {
-        return run {
+        return withContext(Dispatchers.Default) {
             val list = mutableListOf<Show>()
             val baseUrls = mutableListOf("https://ep.alooytv16.xyz/genre/$genreSlug.html")
             for (p in 1 until maxPages) {
@@ -635,7 +630,7 @@ object EpisodeScraper {
 
             for (url in baseUrls) {
                 try {
-                    val doc = fetchDoc(url)
+                    val doc = fetchDocOrThrow(url)
 
                     val items = doc.select(".latest-movie-img-container, .movie-img")
                     if (items.isEmpty()) break
@@ -702,10 +697,10 @@ object EpisodeScraper {
     }
 
     suspend fun scrape3cktvRootHome(): List<Show> {
-        return run {
+        return withContext(Dispatchers.Default) {
             val list = mutableListOf<Show>()
             try {
-                val doc = fetchDocWithBypass("https://e.3cktv.com/") ?: fetchDoc("https://e.3cktv.com/")
+                val doc = fetchDocWithBypass("https://e.3cktv.com/") ?: fetchDocOrThrow("https://e.3cktv.com/")
 
                 val elements = doc.select("article.post, article.postEp, .block-post")
                 elements.forEach { el ->
@@ -753,7 +748,7 @@ object EpisodeScraper {
 
     suspend fun search3cktv(query: String, maxPages: Int = 20): List<Show> {
         if (Catalog.isTashShow(query)) return emptyList()
-        return run {
+        return withContext(Dispatchers.Default) {
             coroutineScope {
                 val allShows = mutableListOf<Show>()
                 try {
@@ -763,7 +758,7 @@ object EpisodeScraper {
                             val pageShows = mutableListOf<Show>()
                             try {
                                 val url = if (page == 1) "https://e.3cktv.com/?s=$encodedQuery" else "https://e.3cktv.com/page/$page/?s=$encodedQuery"
-                                val doc = fetchDocWithBypass(url) ?: fetchDoc(url)
+                                val doc = fetchDocWithBypass(url) ?: fetchDocOrThrow(url)
 
                                 doc.select("article.postEp, article.post, .block-post").forEach { el ->
                                     val aTag = el.selectFirst("a") ?: return@forEach
@@ -839,11 +834,11 @@ object EpisodeScraper {
     }
 
     suspend fun scrapeFostaSeries(page: Int): List<Show> {
-        return run {
+        return withContext(Dispatchers.Default) {
             val list = mutableListOf<Show>()
             try {
                 val url = if (page <= 1) "https://ffosta-tv.quest/moslslat.php" else "https://ffosta-tv.quest/moslslat.php?&page=$page"
-                val doc = fetchDocWithBypass(url) ?: fetchDoc(url)
+                val doc = fetchDocWithBypass(url) ?: fetchDocOrThrow(url)
 
                 val items = doc.select("li.col-xs-6, li.col-sm-4, li.col-md-2, li[class*='col-']")
                 items.forEachIndexed { idx, el ->
@@ -894,11 +889,11 @@ object EpisodeScraper {
     }
 
     suspend fun scrapeFostaMovies(category: String, genreName: String, page: Int = 1): List<Show> {
-        return run {
+        return withContext(Dispatchers.Default) {
             val list = mutableListOf<Show>()
             try {
                 val url = if (page <= 1) "https://ffosta-tv.quest/category.php?cat=$category" else "https://ffosta-tv.quest/category.php?cat=$category&page=$page"
-                val doc = fetchDocWithBypass(url) ?: fetchDoc(url)
+                val doc = fetchDocWithBypass(url) ?: fetchDocOrThrow(url)
 
                 val items = doc.select("li.col-xs-6, li.col-sm-4, li.col-md-2, li[class*='col-']")
                 items.forEachIndexed { idx, el ->
@@ -949,11 +944,11 @@ object EpisodeScraper {
     }
 
     suspend fun scrapeFostaHomePage(): List<Show> {
-        return run {
+        return withContext(Dispatchers.Default) {
             val list = mutableListOf<Show>()
             try {
                 val url = "https://ffosta-tv.quest/"
-                val doc = fetchDocWithBypass(url) ?: fetchDoc(url)
+                val doc = fetchDocWithBypass(url) ?: fetchDocOrThrow(url)
 
                 val items = doc.select("li.col-xs-6, li.col-sm-4, li.col-md-2, li[class*='col-'], .block-post, .block-series")
                 items.forEachIndexed { idx, el ->
@@ -1009,12 +1004,12 @@ object EpisodeScraper {
 
     suspend fun searchFosta(query: String, maxPages: Int = 1): List<Show> {
         if (Catalog.isTashShow(query)) return emptyList()
-        return run {
+        return withContext(Dispatchers.Default) {
             val list = mutableListOf<Show>()
             try {
                 val enc = encodeQuery(query)
                 val url = "https://ffosta-tv.quest/search.php?keywords=$enc"
-                val doc = fetchDocWithBypass(url) ?: fetchDoc(url)
+                val doc = fetchDocWithBypass(url) ?: fetchDocOrThrow(url)
 
                 val items = doc.select("li.col-xs-6, li.col-sm-4, li.col-md-2, li[class*='col-']")
                 items.forEachIndexed { idx, el ->
@@ -1075,10 +1070,10 @@ object EpisodeScraper {
     }
 
     suspend fun getHomeScrapedShows(): List<HomeScrapedShow> {
-        return run {
+        return withContext(Dispatchers.Default) {
             val list = mutableListOf<HomeScrapedShow>()
             try {
-                val doc = fetchDocWithBypass("https://e.3cktv.com/video/series/") ?: fetchDoc("https://e.3cktv.com/video/series/")
+                val doc = fetchDocWithBypass("https://e.3cktv.com/video/series/") ?: fetchDocOrThrow("https://e.3cktv.com/video/series/")
                 
                 val elements = doc.select("article.postEp, article.post").ifEmpty { doc.select(".block-post") }
                 elements.forEach { el ->
@@ -1202,9 +1197,9 @@ object EpisodeScraper {
     }
 
     suspend fun extractDirectStreamUrl(embedUrl: String, referrer: String): String? {
-        return run {
+        return withContext(Dispatchers.Default) {
             try {
-                val doc = fetchDoc(embedUrl)
+                val doc = fetchDocOrThrow(embedUrl)
                 
                 val html = doc.html()
                 val cleanHtml = html.replace("\\/", "/")
@@ -1247,7 +1242,7 @@ object EpisodeScraper {
     }
 
     suspend fun getServersForEpisode(episodeUrl: String): List<VideoServer> {
-        return run {
+        return withContext(Dispatchers.Default) {
             val servers = mutableListOf<VideoServer>()
             try {
                 if (episodeUrl.isBlank()) return@withContext emptyList()
@@ -1268,7 +1263,7 @@ object EpisodeScraper {
                 }
 
                 val doc1 = fetchDocWithBypass(targetUrl, referrer = if (targetUrl.contains("3cktv")) "https://e.3cktv.com/" else "https://z.3cktv.com/")
-                    ?: fetchDoc(targetUrl)
+                    ?: fetchDocOrThrow(targetUrl)
 
                 // 0. Check for 3cktv direct iframe embed and server list
                 if (targetUrl.contains("3cktv")) {
@@ -1295,7 +1290,7 @@ object EpisodeScraper {
                     } else targetUrl
 
                     val playDoc = fetchDocWithBypass(playUrl, referrer = "https://ffosta-tv.quest/")
-                        ?: fetchDoc(playUrl)
+                        ?: fetchDocOrThrow(playUrl)
 
                     val serverLis = playDoc.select(".WatchList li[data-embed-url], li[data-embed-url]")
                     serverLis.forEachIndexed { idx, li ->
@@ -1346,7 +1341,7 @@ object EpisodeScraper {
                             val decodedJson = decodedBytes.decodeToString()
                             val map = parseJsonMap(decodedJson)
                             var sCount = servers.size + 1
-                            for ((key, serverUrl) in map) {
+for ((key, serverUrl) in map) {
                                 if (serverUrl.isNotEmpty() && !serverUrl.startsWith("javascript:") && servers.none { it.url == serverUrl }) {
                                     val serverName = when (key.lowercase()) {
                                         "v", "vidsp" -> "سيرفر Vidsp"
@@ -1376,7 +1371,7 @@ object EpisodeScraper {
                             var epFullUrl = firstEpKeyLink.trim()
                             if (epFullUrl.startsWith("/")) epFullUrl = "https://ep.alooytv16.xyz$epFullUrl"
                             val fetched = fetchDocWithBypass(epFullUrl) ?: try {
-                                fetchDoc(epFullUrl)
+                                fetchDocOrThrow(epFullUrl)
                             } catch (e: Exception) { null }
                             if (fetched != null) {
                                 episodeDoc = fetched
@@ -1416,7 +1411,7 @@ object EpisodeScraper {
                         
                         // Fetch download_video.php to extract Cloudflare worker CDN stream
                         try {
-                            val dlDoc = fetchDocWithBypass(dlFullUrl) ?: fetchDoc(dlFullUrl)
+                            val dlDoc = fetchDocWithBypass(dlFullUrl) ?: fetchDocOrThrow(dlFullUrl)
                             val workerLink = dlDoc.select("a[href*='workers.dev'], a[href*='token='], a.btn-danger").attr("href").trim()
                             if (workerLink.startsWith("http") && workerServerUrl == null) {
                                 workerServerUrl = workerLink
@@ -1442,7 +1437,7 @@ object EpisodeScraper {
                         try {
                             val b64 = base64Encode(primaryVideo.encodeToByteArray())
                             val dlUrl = "https://ep.alooytv16.xyz/download_video.php?video_url=$b64"
-                            val dlDoc = fetchDocWithBypass(dlUrl) ?: fetchDoc(dlUrl)
+                            val dlDoc = fetchDocWithBypass(dlUrl) ?: fetchDocOrThrow(dlUrl)
                             val workerLink = dlDoc.select("a[href*='workers.dev'], a[href*='token='], a.btn-danger").attr("href").trim()
                             if (workerLink.startsWith("http")) {
                                 workerServerUrl = workerLink
@@ -1592,12 +1587,12 @@ object EpisodeScraper {
                     if (src1.startsWith("//")) {
                         src1 = "https:$src1"
                     } else if (src1.startsWith("/")) {
-                        val uri = (hostOf(episodeUrl) ?: "")
-                        src1 = "${uri.scheme}://${uri.host}$src1"
+                        val _uriSrc = episodeUrl
+                        src1 = "${schemeOf(_uriSrc)}://${hostOf(_uriSrc) ?: ""}$src1"
                     }
 
                     try {
-                        val doc2 = fetchDocWithBypass(src1, episodeUrl) ?: fetchDoc(src1)
+                        val doc2 = fetchDocWithBypass(src1, episodeUrl) ?: fetchDocOrThrow(src1)
 
                         val menuLinks = doc2.select("ul.aplr-menu li a, .aplr-menu a, ul.servList li a, .servers-list a, .server-item a, div.servers a, ul.nav-tabs a")
                         if (menuLinks.isNotEmpty()) {
@@ -1609,8 +1604,8 @@ object EpisodeScraper {
                                     if (href.startsWith("//")) {
                                         href = "https:$href"
                                     } else if (href.startsWith("/")) {
-                                        val uri = (hostOf(src1) ?: "")
-                                        href = "${uri.scheme}://${uri.host}$href"
+                                        val _uriSrc = src1
+                                        href = "${schemeOf(_uriSrc)}://${hostOf(_uriSrc) ?: ""}$href"
                                     }
                                     val serverName = "سيرفر $count"
                                     if (servers.none { it.url == href }) {
@@ -1644,7 +1639,7 @@ object EpisodeScraper {
     }
 
     suspend fun resolveServerDirectUrl(serverUrl: String, referrer: String): String? {
-        return run {
+        return withContext(Dispatchers.Default) {
             try {
                 if (serverUrl.isBlank()) return@withContext null
                 // Proxied URLs, Cloudflare workers, or direct video files don't need redundant scraping
@@ -1662,7 +1657,7 @@ object EpisodeScraper {
                 }
 
                 val doc = fetchDocWithBypass(targetUrl, if (targetUrl.contains("3cktv")) null else referrer)
-                    ?: fetchDoc(targetUrl)
+                    ?: fetchDocOrThrow(targetUrl)
 
                 // Check for direct video source tags
                 val videoSrc = doc.select("video source[src], video[src]").firstOrNull()?.attr("src")
@@ -1670,9 +1665,8 @@ object EpisodeScraper {
                     var vUrl = videoSrc
                     if (vUrl.startsWith("//")) vUrl = "https:$vUrl"
                     else if (vUrl.startsWith("/")) {
-                        val scheme = targetUrl.substringBefore("://", "https")
-                        val host = hostOf(targetUrl) ?: "e.3cktv.com"
-                        vUrl = "$scheme://$host$vUrl"
+                        val _uriSrc = targetUrl
+                        vUrl = "${schemeOf(_uriSrc)}://${hostOf(_uriSrc) ?: ""}$vUrl"
                     }
                     return@withContext vUrl
                 }
@@ -1705,8 +1699,8 @@ object EpisodeScraper {
                     if (src.startsWith("//")) {
                         src = "https:$src"
                     } else if (src.startsWith("/")) {
-                        val uri = (hostOf(targetUrl) ?: "")
-                        src = "${uri.scheme}://${uri.host}$src"
+                        val _uriSrc = targetUrl
+                        src = "${schemeOf(_uriSrc)}://${hostOf(_uriSrc) ?: ""}$src"
                     }
                     if (src.contains("vidsp.net") && !src.contains("embed-") && !src.contains("/e/")) {
                         src = src.replace("vidsp.net/", "vidsp.net/e/")
@@ -1724,7 +1718,7 @@ object EpisodeScraper {
     }
 
     suspend fun getVideoUrlForEpisode(episodeUrl: String): String? {
-        return run {
+        return withContext(Dispatchers.Default) {
             try {
                 if (episodeUrl.isBlank()) return@withContext null
                 
@@ -1741,7 +1735,7 @@ object EpisodeScraper {
                     } else episodeUrl
 
                     val doc = fetchDocWithBypass(watchUrl, referrer = "https://e.3cktv.com/")
-                        ?: fetchDoc(watchUrl)
+                        ?: fetchDocOrThrow(watchUrl)
 
                     val iframe = doc.select(".postEmbed iframe, .singleInfo iframe, iframe[src*='embed'], iframe[src*='vid'], iframe[src*='stream']").firstOrNull()?.attr("src")
                     if (!iframe.isNullOrBlank()) {
@@ -1754,7 +1748,7 @@ object EpisodeScraper {
 
                 val targetUrl = episodeUrl
                 val doc1 = fetchDocWithBypass(targetUrl, referrer = "https://z.3cktv.com/")
-                    ?: fetchDoc(targetUrl)
+                    ?: fetchDocOrThrow(targetUrl)
 
                 // Check for single-watch-btn with encoded post JSON containing direct servers
                 val watchBtns = doc1.select("a.single-watch-btn, a#btnWatch, .single_buttons a, a[href*='post='], a[href*='lahda.site']")
@@ -1766,7 +1760,7 @@ object EpisodeScraper {
                             val decodedBytes = base64Decode(postParam)
                             val decodedJson = decodedBytes.decodeToString()
                             val map = parseJsonMap(decodedJson)
-                            for ((key, serverUrl) in map) {
+for ((key, serverUrl) in map) {
                                 if (serverUrl.isNotEmpty() && !serverUrl.startsWith("javascript:")) {
                                     return@withContext serverUrl
                                 }
@@ -1807,8 +1801,8 @@ object EpisodeScraper {
                     if (src1.startsWith("//")) {
                         src1 = "https:$src1"
                     } else if (src1.startsWith("/")) {
-                        val uri = (hostOf(episodeUrl) ?: "")
-                        src1 = "${uri.scheme}://${uri.host}$src1"
+                        val _uriSrc = episodeUrl
+                        src1 = "${schemeOf(_uriSrc)}://${hostOf(_uriSrc) ?: ""}$src1"
                     }
                     return@withContext src1
                 }
