@@ -100,11 +100,11 @@ fun OfflineScreen(
                         .border(1.5.dp, Color(0xFFE50914).copy(alpha = 0.4f), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    Image(
-                        painter = org.jetbrains.compose.resources.painterResource(agon_kmp.shared.generated.resources.Res.drawable.offline_sad_character),
+                    Icon(
+                        imageVector = androidx.compose.material.icons.Icons.Filled.Info,
                         contentDescription = "لا يوجد اتصال",
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
+                        tint = Color(0xFFE50914),
+                        modifier = Modifier.size(56.dp)
                     )
                 }
 
@@ -185,9 +185,7 @@ fun OfflineScreen(
                                         onPlayEpisode(
                                             episode.localFilePath,
                                             "${episode.showTitle} - ${episode.episodeTitle}"
-                                        ) else {
-                                            /* toast removed */
-                                        }
+                                        )
                                     }
                                     .padding(8.dp),
                                 verticalAlignment = Alignment.CenterVertically

@@ -241,7 +241,7 @@ fun DownloadedEpisodesScreen(
                             }
 
                             IconButton(
-                                onClick = { EpisodeDownloaderManager.deleteDownloadedEpisode(episode.id) }
+                                onClick = { EpisodeDownloaderManager.deleteDownloadedEpisode(item.id) }
                             ) {
                                 Icon(
                                     imageVector = Icons.Filled.Delete,
