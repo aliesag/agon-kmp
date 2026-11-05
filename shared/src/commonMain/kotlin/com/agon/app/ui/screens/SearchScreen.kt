@@ -234,6 +234,7 @@ fun SearchScreen(vm: AppViewModel, onOpenShow: (String) -> Unit) {
                 contentPadding = PaddingValues(horizontal = horizontalPadding, vertical = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
+                modifier = Modifier.weight(1f).fillMaxWidth(),
             ) {
                 items(paginatedResults) { show ->
                     val isDubbed = show.genres.contains("مدبلج") || show.rating == "مدبلج" || show.title.contains("مدبلج")
