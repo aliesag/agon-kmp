@@ -15,7 +15,7 @@ import platform.WebKit.WKScriptMessage
 import platform.WebKit.WKScriptMessageHandlerProtocol
 import platform.WebKit.WKUserContentController
 import platform.WebKit.WKUserScript
-import platform.WebKit.WKUserScriptInjectionTimeAtDocumentStart
+import platform.WebKit.WKUserScriptInjectionTime
 import platform.WebKit.WKWebView
 import platform.WebKit.WKWebViewConfiguration
 import platform.darwin.NSObject
@@ -93,7 +93,7 @@ actual fun VideoPlayerHost(
                 controller.addUserScript(
                     WKUserScript(
                         source = injectScript,
-                        injectionTime = WKUserScriptInjectionTimeAtDocumentStart,
+                        injectionTime = WKUserScriptInjectionTime.WKUserScriptInjectionTimeAtDocumentStart,
                         forMainFrameOnly = true
                     )
                 )
