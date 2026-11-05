@@ -169,7 +169,12 @@ private fun MainContent(
                         )
                     }
                     composable("downloaded_episodes") {
-                        ComingSoonScreen("الحلقات المحملة", "التنزيل الفعلي عبر URLSession في المرحلة القادمة") { nav.popBackStack() }
+                        DownloadedEpisodesScreen(
+                            onBack = { nav.popBackStack() },
+                            onPlayOffline = { path, title ->
+                                nav.navigate("offline_player/$path/$title")
+                            }
+                        )
                     }
                     composable("shorts") {
                         ComingSoonScreen("شورتس", "مشغّل الفيديو العمودي عبر AVPlayer في المرحلة القادمة") { nav.popBackStack() }
@@ -189,6 +194,33 @@ private fun MainContent(
                                     popUpTo("home") { inclusive = true }
                                 }
                             }
+                        )
+                    }
+                    composable("login") {
+                        LoginScreen(
+                            authViewModel = null,
+                            onSuccess = { nav.navigate("home") { popUpTo("home") { inclusive = true } } },
+                            onBack = { nav.popBackStack() }
+                        )
+                    }
+                    composable("register") {
+                        RegisterScreen(
+                            authViewModel = null,
+                            onSuccess = { nav.navigate("home") { popUpTo("home") { inclusive = true } } },
+                            onBack = { nav.popBackStack() }
+                        )
+                    }
+                    composable("forgot_password") {
+                        ForgotPasswordScreen(
+                            authViewModel = null,
+                            onBack = { nav.popBackStack() }
+                        )
+                    }
+                    composable("chat_login") {
+                        ChatLoginScreen(
+                            vm = vm,
+                            onSuccess = { nav.popBackStack() },
+                            onBack = { nav.popBackStack() }
                         )
                     }
                     composable("detail/{id}") { entry ->
