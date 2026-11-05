@@ -238,7 +238,7 @@ first200=${html.take(200)}"
             val shows = mutableListOf<Show>()
             try {
                 val url = if (page <= 1) "https://$domain/video/series/" else "https://$domain/video/series/page/$page/"
-                val doc = fetchDocWithBypass(url) ?: return@async emptyList<Show>()
+                val doc = fetchDocWithBypass(url) ?: return@withContext emptyList<Show>()
 
                 val elements = doc.select("article.postEp, article.post").ifEmpty { doc.select(".block-post") }
                 elements.forEachIndexed { index, el ->
@@ -825,7 +825,7 @@ first200=${html.take(200)}"
                             val pageShows = mutableListOf<Show>()
                             try {
                                 val url = if (page == 1) "https://e.3cktv.com/?s=$encodedQuery" else "https://e.3cktv.com/page/$page/?s=$encodedQuery"
-                                val doc = fetchDocWithBypass(url) ?: return@async emptyList<Show>()
+                                val doc = fetchDocWithBypass(url) ?: return@withContext emptyList<Show>()
 
                                 doc.select("article.postEp, article.post, .block-post").forEach { el ->
                                     val aTag = el.selectFirst("a") ?: return@forEach
@@ -905,7 +905,7 @@ first200=${html.take(200)}"
             val list = mutableListOf<Show>()
             try {
                 val url = if (page <= 1) "https://ffosta-tv.quest/moslslat.php" else "https://ffosta-tv.quest/moslslat.php?&page=$page"
-                val doc = fetchDocWithBypass(url) ?: return@async emptyList<Show>()
+                val doc = fetchDocWithBypass(url) ?: return@withContext emptyList<Show>()
 
                 val items = doc.select("li.col-xs-6, li.col-sm-4, li.col-md-2, li[class*='col-']")
                 items.forEachIndexed { idx, el ->
@@ -960,7 +960,7 @@ first200=${html.take(200)}"
             val list = mutableListOf<Show>()
             try {
                 val url = if (page <= 1) "https://ffosta-tv.quest/category.php?cat=$category" else "https://ffosta-tv.quest/category.php?cat=$category&page=$page"
-                val doc = fetchDocWithBypass(url) ?: return@async emptyList<Show>()
+                val doc = fetchDocWithBypass(url) ?: return@withContext emptyList<Show>()
 
                 val items = doc.select("li.col-xs-6, li.col-sm-4, li.col-md-2, li[class*='col-']")
                 items.forEachIndexed { idx, el ->
@@ -1015,7 +1015,7 @@ first200=${html.take(200)}"
             val list = mutableListOf<Show>()
             try {
                 val url = "https://ffosta-tv.quest/"
-                val doc = fetchDocWithBypass(url) ?: return@async emptyList<Show>()
+                val doc = fetchDocWithBypass(url) ?: return@withContext emptyList<Show>()
 
                 val items = doc.select("li.col-xs-6, li.col-sm-4, li.col-md-2, li[class*='col-'], .block-post, .block-series")
                 items.forEachIndexed { idx, el ->
@@ -1076,7 +1076,7 @@ first200=${html.take(200)}"
             try {
                 val enc = encodeQuery(query)
                 val url = "https://ffosta-tv.quest/search.php?keywords=$enc"
-                val doc = fetchDocWithBypass(url) ?: return@async emptyList<Show>()
+                val doc = fetchDocWithBypass(url) ?: return@withContext emptyList<Show>()
 
                 val items = doc.select("li.col-xs-6, li.col-sm-4, li.col-md-2, li[class*='col-']")
                 items.forEachIndexed { idx, el ->
