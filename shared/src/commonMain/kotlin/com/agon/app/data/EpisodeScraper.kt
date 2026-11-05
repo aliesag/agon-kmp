@@ -4,7 +4,7 @@ import com.fleeksoft.ksoup.Ksoup
 import com.fleeksoft.ksoup.nodes.Document
 import com.agon.app.Http
 import kotlinx.serialization.json.contentOrNull
-import org.jsoup.nodes.Element
+import com.fleeksoft.ksoup.nodes.Element
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.async
