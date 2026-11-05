@@ -72,8 +72,17 @@ fun PosterArt(
 
         // Fast Coil AsyncImage with ContentScale.FillBounds (stretches poster to fill 100% of card)
         if (imageRequest != null) {
+            val req = coil3.request.ImageRequest.Builder(coil3.PlatformContext.INSTANCE)
+                .data(imageRequest)
+                .httpHeaders(
+                    coil3.network.NetworkHeaders {
+                        set("Referer", com.agon.app.data.ImageReferers.refererFor(imageRequest))
+                        set("User-Agent", com.agon.app.data.ImageReferers.userAgent())
+                    }
+                )
+                .build()
             AsyncImage(
-                model = imageRequest,
+                model = req,
                 contentDescription = title,
                 contentScale = ContentScale.FillBounds,
                 modifier = Modifier.fillMaxSize()

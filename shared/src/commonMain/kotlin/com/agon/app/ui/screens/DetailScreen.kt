@@ -641,8 +641,17 @@ fun EpisodeItemRow(
             ) {
                 if (episode.poster.isNotEmpty()) {
                     val cleanedEpPoster = remember(episode.poster) { com.agon.app.data.TmdbHelper.cleanPosterUrl(episode.poster) }
+                    val epReq = coil3.request.ImageRequest.Builder(coil3.PlatformContext.INSTANCE)
+                        .data(cleanedEpPoster)
+                        .httpHeaders(
+                            coil3.network.NetworkHeaders {
+                                set("Referer", com.agon.app.data.ImageReferers.refererFor(cleanedEpPoster))
+                                set("User-Agent", com.agon.app.data.ImageReferers.userAgent())
+                            }
+                        )
+                        .build()
                     coil3.compose.AsyncImage(
-                        model = cleanedEpPoster,
+                        model = epReq,
                         contentDescription = episode.title,
                         modifier = Modifier.fillMaxSize(),
                         contentScale = androidx.compose.ui.layout.ContentScale.Crop
