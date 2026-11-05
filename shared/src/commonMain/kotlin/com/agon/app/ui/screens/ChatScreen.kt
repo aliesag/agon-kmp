@@ -71,33 +71,7 @@ fun ChatScreen(
 
     var isUploadingImage by remember { mutableStateOf(false) }
 
-    val imagePicker = rememberImagePicker { bytes ->
-        isUploadingImage = true
-        scope.launch {
-            val url = ImageUploader.uploadImageBytes(bytes)
-            if (url != null) {
-                val payload = JSONObject().apply {
-                    put("text", "")
-                    put("imageUrl", url)
-                    put("user", profileName)
-                    put("avatar", profileAvatar)
-                    put("color", profileColor.toLong() and 0xFFFFFFFFL)
-                    put("timestamp", Clock.System.now().toEpochMilliseconds())
-                }.toString()
-                try {
-                    Http.client.post {
-                        url(CHAT_URL)
-                        setBody(payload)
-                        header("Content-Type", "application/json")
-                    }
-                    load()
-                } catch (_: Exception) { }
-            }
-            isUploadingImage = false
-        }
-    }
-
-    suspend fun load() {
+suspend fun load() {
         try {
             val raw = Http.get(CHAT_URL)
             if (raw.isNullOrBlank() || raw == "null") { messages = emptyList(); return }
@@ -126,6 +100,34 @@ fun ChatScreen(
             if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1)
         } catch (_: Exception) { /* keep old list */ }
     }
+
+    val imagePicker = rememberImagePicker { bytes ->
+        isUploadingImage = true
+        scope.launch {
+            val url = ImageUploader.uploadImageBytes(bytes)
+            if (url != null) {
+                val payload = JSONObject().apply {
+                    put("text", "")
+                    put("imageUrl", url)
+                    put("user", profileName)
+                    put("avatar", profileAvatar)
+                    put("color", profileColor.toLong() and 0xFFFFFFFFL)
+                    put("timestamp", Clock.System.now().toEpochMilliseconds())
+                }.toString()
+                try {
+                    Http.client.post {
+                        url(CHAT_URL)
+                        setBody(payload)
+                        header("Content-Type", "application/json")
+                    }
+                    load()
+                } catch (_: Exception) { }
+            }
+            isUploadingImage = false
+        }
+    }
+
+    
 
     LaunchedEffect(Unit) {
         while (true) {
