@@ -331,3 +331,8 @@ fun RatingBadge(imdb: Double) {
         )
     }
 }
+
+private fun formatOneDecimal(v: Double): String {
+    val scaled = (v * 10.0 + 0.5).toInt()
+    return "${scaled / 10}.${scaled % 10}"
+}
