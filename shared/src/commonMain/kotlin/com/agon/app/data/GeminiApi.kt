@@ -41,14 +41,14 @@ object GeminiClient {
     suspend fun generateContent(request: GenerateContentRequest): GenerateContentResponse? {
         val url = "$BASE_URL/v1beta/models/gemini-3.5-flash:generateContent"
         return try {
-            val body = json.encodeToString(GenerateContentRequest.serializer(), request)
+            val body = json.encodeToString(request)
             val resp = Http.client.post {
                 url(url)
                 parameter("key", API_KEY)
                 contentType(ContentType.Application.Json)
                 setBody(body)
             }.bodyAsText()
-            json.decodeFromString(GenerateContentResponse.serializer(), resp)
+            json.decodeFromString<GenerateContentResponse>(resp)
         } catch (e: Exception) {
             null
         }
