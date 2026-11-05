@@ -117,14 +117,14 @@ fun PlayerScreen(
     LaunchedEffect(show.id) {
         vm.loadEpisodes(show)
         AdManager.isInsidePlayer = true
-        AdManager.showBeforeEpisodeAd {
-            isAdChecked = true
-            val ep = currentEpisode ?: episodes.firstOrNull()
-            if (ep != null) {
-                currentEpisode = ep
-                vm.loadEpisodeVideo(ep)
-            }
+        // Non-blocking: show ad in parallel, kick off playback immediately
+        isAdChecked = true
+        val ep = currentEpisode ?: episodes.firstOrNull()
+        if (ep != null) {
+            currentEpisode = ep
+            vm.loadEpisodeVideo(ep)
         }
+        AdManager.showBeforeEpisodeAd { }
     }
 
     LaunchedEffect(currentEpisode, show.id, isAdChecked) {

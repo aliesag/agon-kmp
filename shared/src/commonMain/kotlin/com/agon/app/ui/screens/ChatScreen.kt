@@ -91,7 +91,7 @@ fun ChatScreen(
                     )
                 )
             }
-            messages = out.sortedBy { it.timestamp }
+            messages = out.sortedWith(compareBy<ChatMessage> { it.timestamp }.thenBy { it.id })
             if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1)
         } catch (_: Exception) { /* keep old list */ }
     }
@@ -107,7 +107,7 @@ fun ChatScreen(
     // Auto-scroll to the latest message whenever list changes
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
-            try { listState.animateScrollToItem(messages.lastIndex) } catch (_: Exception) { }
+            try { listState.scrollToItem(messages.lastIndex) } catch (_: Exception) { }
         }
     }
 
@@ -167,7 +167,8 @@ fun ChatScreen(
                     state = listState,
                     modifier = Modifier.fillMaxSize(),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                    reverseLayout = false
                 ) {
                     items(messages, key = { it.id }) { msg ->
                         val isOwn = msg.user == profileName

@@ -26,8 +26,34 @@ private fun WithViewModelStoreOwner(content: @Composable () -> Unit) {
 
 private fun configureCoil() {
     try {
+        val http = io.ktor.client.HttpClient(io.ktor.client.engine.darwin.Darwin) {
+            expectSuccess = false
+            install(io.ktor.client.plugins.HttpSend) {
+                // per-host Referer + UA (3cktv / fosta reject missing Referer)
+                intercept { request ->
+                    val url = request.url.toString().lowercase()
+                    val referer = when {
+                        url.contains("3cktv") -> "https://e.3cktv.com/"
+                        url.contains("ffosta") || url.contains("fosta") -> "https://ffosta-tv.quest/"
+                        url.contains("alooytv") -> "https://ep.alooytv16.xyz/"
+                        url.contains("yalla.moda") -> "https://yalla.moda/"
+                        url.contains("tmdb") -> "https://www.themoviedb.org/"
+                        else -> "https://e.3cktv.com/"
+                    }
+                    request.headers.append("Referer", referer)
+                    request.headers.append(
+                        "User-Agent",
+                        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
+                    )
+                    execute(request)
+                }
+            }
+        }
         SingletonImageLoader.setSafe { ctx: PlatformContext ->
             val loader = ImageLoader.Builder(ctx)
+                .components {
+                    add(coil3.network.ktor3.KtorNetworkFetcherFactory(httpClient = http))
+                }
                 .memoryCache {
                     MemoryCache.Builder()
                         .maxSizePercent(ctx, 0.10)
