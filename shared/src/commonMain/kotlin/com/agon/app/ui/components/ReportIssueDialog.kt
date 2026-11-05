@@ -24,6 +24,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.agon.app.Http
+import io.ktor.client.request.header
 import io.ktor.client.request.post
 import io.ktor.client.request.setBody
 import io.ktor.client.request.url
@@ -39,6 +40,7 @@ private const val REPORTS_URL = "https://chat-516a8-default-rtdb.firebaseio.com/
 fun ReportIssueDialog(
     initialUserName: String = "",
     deviceType: String = "mobile",
+    showId: String = "",
     onDismiss: () -> Unit
 ) {
     var userName by remember { mutableStateOf(initialUserName) }

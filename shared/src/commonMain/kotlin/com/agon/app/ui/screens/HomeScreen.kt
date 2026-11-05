@@ -85,7 +85,8 @@ fun HomeScreen(
     val categories by vm.categories.collectAsStateWithLifecycle()
     val deviceType by vm.deviceType.collectAsStateWithLifecycle()
     val isTv = deviceType == "tv"
-    val heroHeight = if (isTv) 380.dp else 540.dp
+    // Hero: 16:9 responsive (was 540dp fixed — too tall on iPhone)
+    val heroHeight = if (isTv) 380.dp else (androidx.compose.ui.platform.LocalConfiguration.current.screenWidthDp * 0.56f).dp
     val featuredShows = (categories.firstOrNull()?.shows?.take(5) ?: emptyList()).ifEmpty { listOfNotNull(Catalog.featured) }
     val lastWatchedShow by vm.lastWatchedShow.collectAsStateWithLifecycle()
     val lastWatchedEpisode by vm.lastWatchedEpisode.collectAsStateWithLifecycle()
@@ -106,6 +107,7 @@ fun HomeScreen(
 
     if (showReportDialog) {
         ReportIssueDialog(
+            deviceType = deviceType,
             showId = "home",
             onDismiss = { showReportDialog = false }
         )
@@ -200,6 +202,8 @@ fun HomeScreen(
                     val pagerState = androidx.compose.foundation.pager.rememberPagerState { featuredShows.size }
                     androidx.compose.foundation.pager.HorizontalPager(
                         state = pagerState,
+                        contentPadding = PaddingValues(horizontal = 16.dp),
+                        pageSpacing = 12.dp,
                         modifier = Modifier.fillMaxWidth().height(heroHeight)
                     ) { page ->
                         val show = featuredShows[page]
