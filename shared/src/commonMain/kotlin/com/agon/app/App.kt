@@ -27,7 +27,6 @@ import com.agon.app.data.matches.MatchesRepository
 import com.agon.app.ui.screens.*
 import com.agon.app.ui.theme.AgonAppTheme
 import com.agon.app.viewmodel.AppViewModel
-import com.agon.app.viewmodel.AppViewModelFactory
 import com.agon.app.viewmodel.MatchesViewModel
 
 private val NetflixRed = Color(0xFFE50914)
@@ -39,8 +38,7 @@ private val Grey = Color(0xFF8C8C94)
 fun App() {
     AgonAppTheme {
         val prefs = remember { PrefsManager() }
-        val factory = remember { AppViewModelFactory(prefs) }
-        val vm: AppViewModel = viewModel(factory = factory)
+        val vm: AppViewModel = viewModel { AppViewModel(prefs) }
         val matchesVm: MatchesViewModel = viewModel()
         val nav = rememberNavController()
 
