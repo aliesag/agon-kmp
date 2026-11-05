@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
 import kotlinx.coroutines.coroutineScope
@@ -1469,73 +1470,79 @@ class AppViewModel(private val prefsManager: PrefsManager) : ViewModel() {
     fun performRemoteSearch(query: String) {
         if (query.isBlank() || Catalog.isTashShow(query)) return
         searchJob?.cancel()
-        searchJob = viewModelScope.launch {
-            try {
+        searchJob = viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
             _isSearchingRemote.value = true
             try {
-                delay(400) // debounce
-                
+                delay(300) // debounce
+
                 val queryVariants = mutableSetOf(query.trim())
                 val normalized = Catalog.normalizeTitle(query)
-                val withHamza = query.replace("ه", "ة").replace("ا", "أ").replace("ي", "ى").replace("ي", "ئ").trim()
                 queryVariants.add(normalized)
-                queryVariants.add(withHamza)
-                
-                // Add English variation if it looks like a known title or just as a fallback
-                if (query.lowercase().contains("titanic")) {
-                    queryVariants.add("تايتانك")
-                }
-                if (query.contains("تايتانك")) {
-                    queryVariants.add("titanic")
-                }
-                
-                val jobs3ck = queryVariants.filter { it.length >= 2 }.map { q ->
-                    async { com.agon.app.data.EpisodeScraper.search3cktv(q) }
-                }
-                val jobsFosta = queryVariants.filter { it.length >= 2 }.map { q ->
-                    async { com.agon.app.data.EpisodeScraper.searchFosta(q) }
-                }
-                
-                val res3ck = kotlinx.coroutines.awaitAll(*jobs3ck.toTypedArray()).flatten()
-                val resFosta = kotlinx.coroutines.awaitAll(*jobsFosta.toTypedArray()).flatten()
-                
-                // Also search AlooyTV for Gulf/Ramadan content if query matches
-                val resAlooy = if (normalized.contains("خليجي") || normalized.contains("كويت") || normalized.contains("سعودي") || normalized.contains("رمضان")) {
-                    com.agon.app.data.EpisodeScraper.scrapeAlooyGenreMultiPage("ramadan", "رمضان", 1)
-                } else emptyList()
+                // Common typo/transliteration fixes
+                queryVariants.add(
+                    query.replace("ه", "ة").replace("ا", "أ").replace("ي", "ى").replace("ة", "ه").trim()
+                )
 
-                val remoteShows = (res3ck + resFosta + resAlooy).filterNot { isAlooytvSeries(it) || Catalog.isTashShow(it.title, it.link, it.id) }
-                
-                if (remoteShows.isNotEmpty()) {
-                    var added = false
-                    val currentList = _shows.value.toMutableList()
-                    remoteShows.forEach { newShow ->
-                        val cleanNew = Catalog.sanitizeShowToSeries(newShow)
-                        if (currentList.none {
-                            it.title.equals(cleanNew.title, ignoreCase = true) ||
-                            (it.link.isNotEmpty() && it.link == cleanNew.link)
-                        }) {
-                            currentList.add(cleanNew)
-                            added = true
+                // Fetch from BOTH sources with per-call timeout; failures are OK.
+                val results = mutableListOf<Show>()
+                for (variant in queryVariants.take(2)) {
+                    try {
+                        val r3ck = withTimeoutOrNull(8_000L) {
+                            com.agon.app.data.EpisodeScraper.search3cktv(variant, maxPages = 2)
+                        }.orEmpty()
+                        if (r3ck.isNotEmpty()) {
+                            results += r3ck
+                            // show partial results immediately
+                            pushSearchResults(results)
                         }
-                    }
-                    if (added) {
-                        val updated = deduplicateByTitle(currentList)
-                        withContext(Dispatchers.Main) {
-                            _shows.value = updated
-                            rebuildCategories(updated)
+                    } catch (_: Throwable) { }
+                    try {
+                        val rFosta = withTimeoutOrNull(8_000L) {
+                            com.agon.app.data.EpisodeScraper.searchFosta(variant, maxPages = 2)
+                        }.orEmpty()
+                        if (rFosta.isNotEmpty()) {
+                            results += rFosta
+                            pushSearchResults(results)
                         }
-                    }
+                    } catch (_: Throwable) { }
                 }
-            } catch (e: Exception) {
-                e.printStackTrace()
+
+                pushSearchResults(results)
+            } catch (_: Throwable) {
             } finally {
                 _isSearchingRemote.value = false
             }
-        
-            } catch (t: Throwable) { println("VANTA_VM_LAUNCH_ERR: ${t.message}") }
         }
     }
+
+    private suspend fun pushSearchResults(remoteShows: List<Show>) {
+        if (remoteShows.isEmpty()) return
+        val cleanRemote = remoteShows
+            .filterNot { isAlooytvSeries(it) || Catalog.isTashShow(it.title, it.link, it.id) }
+            .map { Catalog.sanitizeShowToSeries(it) }
+        if (cleanRemote.isEmpty()) return
+
+        val currentList = _shows.value.toMutableList()
+        var added = false
+        cleanRemote.forEach { cleanNew ->
+            if (currentList.none {
+                    it.title.equals(cleanNew.title, ignoreCase = true) ||
+                    (it.link.isNotEmpty() && it.link == cleanNew.link)
+                }) {
+                currentList.add(cleanNew)
+                added = true
+            }
+        }
+        if (added) {
+            val updated = deduplicateByTitle(currentList)
+            withContext(kotlinx.coroutines.Dispatchers.Main) {
+                _shows.value = updated
+                rebuildCategories(updated)
+            }
+        }
+    }
+
+
 
     fun search(q: String, genre: String): List<Show> {
         if (Catalog.isTashShow(q)) return emptyList()

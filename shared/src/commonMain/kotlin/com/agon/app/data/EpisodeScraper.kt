@@ -256,7 +256,16 @@ object EpisodeScraper {
 
                 val showSlug = showUrl.removeSuffix("/").substringAfterLast("/").replace(".html", "").replace(Regex("[^a-zA-Z0-9_]"), "_").ifEmpty { "show" }
 
-                val doc = fetchDocWithBypass(targetUrl) ?: fetchDocOrThrow(targetUrl)
+                val doc = try {
+                    kotlinx.coroutines.withTimeoutOrNull(8_000L) {
+                        fetchDocWithBypass(targetUrl) ?: fetchDocOrThrow(targetUrl)
+                    }
+                } catch (_: Throwable) { null }
+
+                if (doc == null) {
+                    // لا تعليق — نرجّع فارغ بسرعة، ثم ViewModel يستخدم fallback
+                    return@withContext emptyList()
+                }
 
                 val pageTitle = doc.title().lowercase()
                 if (pageTitle.contains("404") || pageTitle.contains("not found") || pageTitle.contains("غير موجود")) {
@@ -756,7 +765,7 @@ object EpisodeScraper {
         }
     }
 
-    suspend fun search3cktv(query: String, maxPages: Int = 20): List<Show> {
+    suspend fun search3cktv(query: String, maxPages: Int = 2): List<Show> {
         if (Catalog.isTashShow(query)) return emptyList()
         return withContext(Dispatchers.Default) {
             coroutineScope {
@@ -1012,7 +1021,7 @@ object EpisodeScraper {
         }
     }
 
-    suspend fun searchFosta(query: String, maxPages: Int = 1): List<Show> {
+    suspend fun searchFosta(query: String, maxPages: Int = 2): List<Show> {
         if (Catalog.isTashShow(query)) return emptyList()
         return withContext(Dispatchers.Default) {
             val list = mutableListOf<Show>()

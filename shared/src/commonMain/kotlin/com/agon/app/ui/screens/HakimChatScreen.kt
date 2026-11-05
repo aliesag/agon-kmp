@@ -108,11 +108,17 @@ fun HakimChatScreen(
         messages = messages + userMsg
         isSending = true
 
-        // Show detection (same as Android)
-        val matched = try { Catalog.findMatchingShow(text, shows) } catch (_: Exception) { null }
-        val prompt = buildSystemPrompt(matched)
-
         scope.launch {
+            // Before answering: search remote for the mentioned show (matches Android behavior)
+            try {
+                vm.performRemoteSearch(text)
+                kotlinx.coroutines.delay(3500) // give remote a moment
+            } catch (_: Throwable) { }
+
+            val currentShows = vm.shows.value
+            val matched = try { Catalog.findMatchingShow(text, currentShows) } catch (_: Exception) { null }
+            val prompt = buildSystemPrompt(matched)
+
             val reply = try {
                 HakimConfigManager.askHakim(text, systemPrompt = prompt)
                     ?: "تعذر الاتصال بحكيم حالياً، حاول مجدداً بعد قليل."
