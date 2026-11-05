@@ -3,6 +3,7 @@ package com.agon.app.data.matches
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import com.fleeksoft.ksoup.Ksoup
+import com.fleeksoft.ksoup.nodes.Document
 import com.agon.app.Http
 
 object MatchesRepository {
@@ -584,7 +585,7 @@ object MatchesRepository {
     /**
      * Live scraping with scraping from Today, Yesterday, and Tomorrow endpoints.
      */
-    suspend fun fetchLiveMatches(): List<MatchItem> = withContext(Dispatchers.IO) {
+    suspend fun fetchLiveMatches(): List<MatchItem> = withContext(Dispatchers.Default) {
         val allScraped = mutableListOf<MatchItem>()
         val initial = getInitialMatches()
 
@@ -710,7 +711,7 @@ object MatchesRepository {
     /**
      * Attempts live scraping of sports news.
      */
-    suspend fun fetchLiveNews(): List<SportsNewsItem> = withContext(Dispatchers.IO) {
+    suspend fun fetchLiveNews(): List<SportsNewsItem> = withContext(Dispatchers.Default) {
         try {
             val html = Http.get(YALLA_SHOOT_URL, mapOf("User-Agent" to USER_AGENT))
             val doc = Ksoup.parse(html)
