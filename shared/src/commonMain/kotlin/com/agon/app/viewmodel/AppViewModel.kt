@@ -1514,19 +1514,22 @@ class AppViewModel(private val prefsManager: PrefsManager) : ViewModel() {
 
 
     /** Explicit full-catalog fetch — used by BrowseAll "تحميل الكل" button. */
+    private var _isFetchingFullCatalog = false
+
     fun fetchFullCatalogFromSite() {
+        if (_isFetchingFullCatalog || _fullCatalogLoaded.value) return
+        _isFetchingFullCatalog = true
         viewModelScope.launch(kotlinx.coroutines.Dispatchers.Default) {
             _catalogLoading.value = true
             try {
                 val all = mutableListOf<Show>()
-                // Batch through pages 1..51 in groups of 5 to keep memory low
                 for (batchStart in 1..51 step 5) {
                     val batchEnd = (batchStart + 4).coerceAtMost(51)
                     kotlinx.coroutines.coroutineScope {
                         val jobs = (batchStart..batchEnd).map { page ->
                             async {
                                 try {
-                                    withTimeoutOrNull(30_000L) {
+                                    withTimeoutOrNull(25_000L) {
                                         com.agon.app.data.EpisodeScraper.scrapeSeriesPage(page, "e.3cktv.com")
                                     }.orEmpty()
                                 } catch (_: Throwable) { emptyList<Show>() }
@@ -1534,21 +1537,22 @@ class AppViewModel(private val prefsManager: PrefsManager) : ViewModel() {
                         }
                         jobs.awaitAll().forEach { all.addAll(it) }
                     }
-                    // Push partial results every batch so search UI can update live
                     if (all.isNotEmpty()) {
                         pushSearchResults(all.toList())
                     }
+                    // Let the UI breathe between batches
+                    kotlinx.coroutines.delay(150)
                 }
-                if (all.isNotEmpty()) {
-                    pushSearchResults(all)
-                    _fullCatalogLoaded.value = true
-                }
+                if (all.isNotEmpty()) _fullCatalogLoaded.value = true
             } catch (_: Throwable) {
             } finally {
                 _catalogLoading.value = false
+                _isFetchingFullCatalog = false
             }
         }
     }
+
+
 
 
 

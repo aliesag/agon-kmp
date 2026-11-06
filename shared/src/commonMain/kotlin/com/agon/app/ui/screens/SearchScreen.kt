@@ -66,7 +66,7 @@ fun SearchScreen(vm: AppViewModel, onOpenShow: (String) -> Unit) {
     LaunchedEffect(Unit) {
         // Ensure the full catalog starts loading immediately in background
         try {
-            if (!vm.fullCatalogLoaded.value) {
+            if (!vm.fullCatalogLoaded.value && !vm.catalogLoading.value) {
                 vm.fetchFullCatalogFromSite()
             }
         } catch (_: Throwable) { }
@@ -98,7 +98,9 @@ fun SearchScreen(vm: AppViewModel, onOpenShow: (String) -> Unit) {
         )
     }
 
-    val results = vm.search(query, filterType)
+    val results = remember(query, filterType) {
+        try { vm.search(query, filterType) } catch (_: Throwable) { emptyList() }
+    }
 
     var displayLimit by remember(query, filterType, results.size) { mutableIntStateOf(20) }
     val paginatedResults = remember(results, displayLimit) {
@@ -209,7 +211,7 @@ fun SearchScreen(vm: AppViewModel, onOpenShow: (String) -> Unit) {
         Spacer(Modifier.height(12.dp))
 
         if (isSearchingRemote || (initialLoading && query.isEmpty())) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     CircularProgressIndicator(
                         color = Color(0xFFE50914),
@@ -225,7 +227,7 @@ fun SearchScreen(vm: AppViewModel, onOpenShow: (String) -> Unit) {
                 }
             }
         } else if (results.isEmpty()) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(
                         Icons.Filled.SearchOff,
