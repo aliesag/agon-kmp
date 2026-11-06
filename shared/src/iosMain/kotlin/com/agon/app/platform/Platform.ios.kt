@@ -25,6 +25,7 @@ import platform.Foundation.create
 import platform.Foundation.dataWithContentsOfURL
 import platform.Foundation.seekToEndOfFile
 import platform.Foundation.writeData
+import platform.Foundation.writeToFile
 import platform.UIKit.NSTextAlignmentCenter
 import platform.UIKit.UIActivityViewController
 import platform.UIKit.UIPopoverPresentationController
