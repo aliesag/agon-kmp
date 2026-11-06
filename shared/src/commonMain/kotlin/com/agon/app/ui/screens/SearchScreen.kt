@@ -59,6 +59,7 @@ import com.agon.app.viewmodel.AppViewModel
 fun SearchScreen(vm: AppViewModel, onOpenShow: (String) -> Unit) {
     val deviceType by vm.deviceType.collectAsStateWithLifecycle()
     val isSearchingRemote by vm.isSearchingRemote.collectAsStateWithLifecycle()
+    val shows by vm.shows.collectAsStateWithLifecycle()
     var query by remember { mutableStateOf("") }
     var filterType by remember { mutableStateOf("الكل") }
     var initialLoading by remember { mutableStateOf(true) }
@@ -98,8 +99,25 @@ fun SearchScreen(vm: AppViewModel, onOpenShow: (String) -> Unit) {
         )
     }
 
-    val results = remember(query, filterType) {
-        try { vm.search(query, filterType) } catch (_: Throwable) { emptyList() }
+    val results = remember(query, filterType, shows) {
+        try {
+            val r = vm.search(query, filterType)
+            if (r.isEmpty() && query.isBlank()) {
+                // Fallback: hardcoded catalog when _shows hasn't populated yet
+                com.agon.app.data.Catalog.all.filterNot {
+                    com.agon.app.data.Catalog.isTashShow(it.title, it.link, it.id)
+                }
+            } else r
+        } catch (_: Throwable) {
+            // On any exception, fall back to hardcoded catalog for empty query
+            if (query.isBlank()) {
+                try {
+                    com.agon.app.data.Catalog.all.filterNot {
+                        com.agon.app.data.Catalog.isTashShow(it.title, it.link, it.id)
+                    }
+                } catch (_: Throwable) { emptyList() }
+            } else emptyList()
+        }
     }
 
     var displayLimit by remember(query, filterType, results.size) { mutableIntStateOf(20) }
