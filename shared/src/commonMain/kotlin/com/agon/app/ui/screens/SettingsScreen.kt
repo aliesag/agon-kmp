@@ -155,7 +155,7 @@ fun SettingsScreen(vm: AppViewModel, authViewModel: AuthViewModel? = null, onLog
                     contentAlignment = Alignment.Center,
                 ) {
                     if (profileAvatar.isNotEmpty()) {
-                        coil.compose.AsyncImage(
+                        coil3.compose.AsyncImage(
                             model = profileAvatar,
                             contentDescription = "الصورة الشخصية",
                             modifier = Modifier.fillMaxSize(),
@@ -383,7 +383,7 @@ fun SettingsScreen(vm: AppViewModel, authViewModel: AuthViewModel? = null, onLog
                         if (isUploadingAvatar) {
                             CircularProgressIndicator(color = Color.Red, modifier = Modifier.size(24.dp))
                         } else if (tempAvatarUrl.isNotEmpty() || profileAvatar.isNotEmpty()) {
-                            coil.compose.AsyncImage(
+                            coil3.compose.AsyncImage(
                                 model = if (tempAvatarUrl.isNotEmpty()) tempAvatarUrl else profileAvatar,
                                 contentDescription = "الصورة الشخصية",
                                 modifier = Modifier.fillMaxSize(),
@@ -449,7 +449,7 @@ fun SettingsScreen(vm: AppViewModel, authViewModel: AuthViewModel? = null, onLog
                                         tempAvatarUrl = url
                                     }
                             ) {
-                                coil.compose.AsyncImage(
+                                coil3.compose.AsyncImage(
                                     model = url,
                                     contentDescription = null,
                                     modifier = Modifier.fillMaxSize(),

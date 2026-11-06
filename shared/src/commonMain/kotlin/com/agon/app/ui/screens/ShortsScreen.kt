@@ -1283,7 +1283,7 @@ private fun CommentsSheetContent(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(12.dp)
                         ) {
-                            coil.compose.AsyncImage(
+                            coil3.compose.AsyncImage(
                                 model = show.poster,
                                 contentDescription = null,
                                 modifier = Modifier.size(50.dp).clip(RoundedCornerShape(8.dp)),
@@ -1446,7 +1446,7 @@ private fun CommentsSheetContent(
                                 if (show != null) {
                                     Spacer(modifier = Modifier.height(6.dp))
                                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                        coil.compose.AsyncImage(
+                                        coil3.compose.AsyncImage(
                                             model = show.poster,
                                             contentDescription = null,
                                             modifier = Modifier.size(30.dp).clip(RoundedCornerShape(4.dp)),

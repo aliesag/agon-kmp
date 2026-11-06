@@ -109,7 +109,7 @@ actual object PlatformFiles {
                 val old = existing.toByteArray()
                 old + bytes
             } else bytes
-            combined.toNSData().writeToFile(path, atomically = true)
+            combined.toNSData().writeToFile(path = path, atomically = true)
         } catch (_: Throwable) { }
     }
 

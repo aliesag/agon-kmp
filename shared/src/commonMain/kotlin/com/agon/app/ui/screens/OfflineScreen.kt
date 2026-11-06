@@ -35,7 +35,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
-import com.agon.app.R
 import com.agon.app.data.EpisodeDownloaderManager
 import com.agon.app.ui.theme.NetflixRed
 
