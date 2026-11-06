@@ -27,6 +27,8 @@ import platform.Foundation.seekToEndOfFile
 import platform.Foundation.writeData
 import platform.UIKit.NSTextAlignmentCenter
 import platform.UIKit.UIActivityViewController
+import platform.UIKit.UIPopoverPresentationController
+import platform.Foundation.lastPathComponent
 import platform.UIKit.UIApplication
 import platform.UIKit.UIColor
 import platform.UIKit.UIFont
@@ -101,10 +103,14 @@ actual object PlatformFiles {
     }
 
     actual fun append(path: String, bytes: ByteArray) {
-        val h = NSFileHandle.fileHandleForWritingAtPath(path) ?: return
-        h.seekToEndOfFile()
-        h.writeData(bytes.toNSData())
-        h.closeFile()
+        try {
+            val existing = NSFileManager.defaultManager.contentsAtPath(path)
+            val combined = if (existing != null) {
+                val old = existing.toByteArray()
+                old + bytes
+            } else bytes
+            combined.toNSData().writeToFile(path, atomically = true)
+        } catch (_: Throwable) { }
     }
 
     actual fun toFileUrl(path: String): String = NSURL.fileURLWithPath(path).absoluteString ?: "file://$path"
@@ -141,7 +147,6 @@ actual object PlatformUi {
         dispatch_async(dispatch_get_main_queue()) {
             val top = topViewController() ?: return@dispatch_async
             val vc = UIActivityViewController(activityItems = listOf(text), applicationActivities = null)
-            vc.popoverPresentationController?.sourceView = top.view // iPad
             top.presentViewController(vc, animated = true, completion = null)
         }
     }
@@ -150,7 +155,6 @@ actual object PlatformUi {
         dispatch_async(dispatch_get_main_queue()) {
             val top = topViewController() ?: return@dispatch_async
             val vc = UIActivityViewController(activityItems = listOf(NSURL.fileURLWithPath(path)), applicationActivities = null)
-            vc.popoverPresentationController?.sourceView = top.view
             top.presentViewController(vc, animated = true, completion = null)
         }
     }
@@ -185,7 +189,7 @@ private class PickerDelegate(
         val mediaUrl = didFinishPickingMediaWithInfo[UIImagePickerControllerMediaURL] as? NSURL
         if (mediaUrl != null) {
             val data = NSData.dataWithContentsOfURL(mediaUrl)
-            onPicked(data?.let { PickedMedia(it.toByteArray(), mediaUrl.lastPathComponent ?: "video.mp4", true) })
+            onPicked(data?.let { PickedMedia(it.toByteArray(), mediaUrl.absoluteString?.substringAfterLast("/") ?: "video.mp4", true) })
             return
         }
         val img = didFinishPickingMediaWithInfo[UIImagePickerControllerOriginalImage] as? UIImage

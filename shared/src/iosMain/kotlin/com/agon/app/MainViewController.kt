@@ -11,7 +11,11 @@ import coil3.ImageLoader
 import coil3.PlatformContext
 import coil3.SingletonImageLoader
 import coil3.memory.MemoryCache
-import kotlin.experimental.ExperimentalNativeApi
+import coil3.network.ktor.KtorNetworkFetcherFactory
+import io.ktor.client.HttpClient
+import io.ktor.client.engine.darwin.Darwin
+import io.ktor.client.plugins.defaultRequest
+import io.ktor.client.request.header
 import platform.UIKit.UIViewController
 
 private class IOSViewModelStoreOwner : ViewModelStoreOwner {
@@ -26,38 +30,29 @@ private fun WithViewModelStoreOwner(content: @Composable () -> Unit) {
 
 private fun configureCoil() {
     try {
-        val http = io.ktor.client.HttpClient(io.ktor.client.engine.darwin.Darwin) {
+        val ktor = HttpClient(Darwin) {
             expectSuccess = false
-            install(io.ktor.client.plugins.HttpSend) {
-                // per-host Referer + UA (3cktv / fosta reject missing Referer)
-                intercept { request ->
-                    val url = request.url.toString().lowercase()
-                    val referer = when {
-                        url.contains("3cktv") -> "https://e.3cktv.com/"
-                        url.contains("ffosta") || url.contains("fosta") -> "https://ffosta-tv.quest/"
-                        url.contains("alooytv") -> "https://ep.alooytv16.xyz/"
-                        url.contains("yalla.moda") -> "https://yalla.moda/"
-                        url.contains("tmdb") -> "https://www.themoviedb.org/"
-                        else -> "https://e.3cktv.com/"
-                    }
-                    request.headers.append("Referer", referer)
-                    request.headers.append(
-                        "User-Agent",
-                        "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
-                    )
-                    execute(request)
+            defaultRequest {
+                val u = url.toString().lowercase()
+                val ref = when {
+                    u.contains("ffosta") || u.contains("fosta") -> "https://ffosta-tv.quest/"
+                    u.contains("alooytv") -> "https://ep.alooytv16.xyz/"
+                    u.contains("yalla.moda") -> "https://yalla.moda/"
+                    u.contains("tmdb") -> "https://www.themoviedb.org/"
+                    else -> "https://e.3cktv.com/"
                 }
+                header("Referer", ref)
+                header(
+                    "User-Agent",
+                    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+                )
             }
         }
         SingletonImageLoader.setSafe { ctx: PlatformContext ->
             val loader = ImageLoader.Builder(ctx)
-                .components {
-                    add(coil3.network.ktor3.KtorNetworkFetcherFactory(httpClient = http))
-                }
+                .components { add(KtorNetworkFetcherFactory(ktor)) }
                 .memoryCache {
-                    MemoryCache.Builder()
-                        .maxSizePercent(ctx, 0.10)
-                        .build()
+                    MemoryCache.Builder().maxSizePercent(ctx, 0.10).build()
                 }
                 .build()
             com.agon.app.data.ImageLoaderHolder.loader = loader
