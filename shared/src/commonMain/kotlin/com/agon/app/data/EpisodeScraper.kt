@@ -20,24 +20,14 @@ object EpisodeScraper {
     )
 
     private suspend fun fetchDocOrThrow(url: String, referrer: String? = null): Document {
-        var lastException: Exception? = null
-        for (ua in UA_LIST) {
-            try {
-                val headers = mutableMapOf(
-                    "User-Agent" to ua,
-                    "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
-                    "Accept-Language" to "ar-SA,ar;q=0.9,en-US;q=0.8,en;q=0.7",
-                    "Cache-Control" to "no-cache"
-                )
-                if (!referrer.isNullOrBlank()) headers["Referer"] = referrer
-                else if (url.contains("3cktv") || url.contains("3iskk")) headers["Referer"] = "https://e.3cktv.com/"
-                else if (url.contains("fosta")) headers["Referer"] = "https://ffosta-tv.quest/"
-                else if (url.contains("alooytv")) headers["Referer"] = "https://ep.alooytv16.xyz/"
-                val html = Http.get(url, headers)
-                if (html.length > 200) return Ksoup.parse(html)
-            } catch (e: Exception) { lastException = e }
-        }
-        throw lastException ?: IllegalStateException("Empty response from $url")
+        val headers = mutableMapOf(
+            "User-Agent" to UA_LIST[0],
+            "Accept" to "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+            "Accept-Language" to "ar-SA,ar;q=0.9,en-US;q=0.8,en;q=0.7",
+            "Cache-Control" to "no-cache"
+        )
+        if (!referrer.isNullOrBlank()) headers["Referer"] = referrer
+        return Ksoup.parse(Http.get(url, headers))
     }
 
     private fun hostOf(url: String): String? = try {
@@ -111,34 +101,8 @@ object EpisodeScraper {
         } catch (e: Exception) { emptyMap() }
     }
 
-    // 3cktv mirrors — try in order if primary fails
-    private val CKTV_MIRRORS = listOf(
-        "e.3cktv.com",
-        "www.3cktv.com",
-        "3cktv.com",
-        "3iskk.xyz",
-        "i3sk.com",
-        "wvw.i3sk.com"
-    )
-
     private suspend fun fetchDocWithBypass(url: String, referrer: String? = null): Document? {
-        // 1) direct attempt
-        fetchOnce(url, referrer)?.let { return it }
-
-        // 2) if URL is 3cktv family, try mirrors
-        if (url.contains("3cktv") || url.contains("3iskk") || url.contains("i3sk")) {
-            val path = url.substringAfter("://").substringAfter("/", "")
-            for (mirror in CKTV_MIRRORS) {
-                if (url.contains(mirror)) continue
-                val altUrl = "https://$mirror/$path"
-                fetchOnce(altUrl, "https://$mirror/")?.let { return it }
-            }
-        }
-        return null
-    }
-
-    private suspend fun fetchOnce(url: String, referrer: String?): Document? {
-        for (ua in listOf(UA_LIST[0], UA_LIST[1])) {
+        for (ua in UA_LIST) {
             try {
                 val headers = mutableMapOf(
                     "User-Agent" to ua,
@@ -147,41 +111,18 @@ object EpisodeScraper {
                     "Cache-Control" to "no-cache"
                 )
                 if (!referrer.isNullOrBlank()) headers["Referer"] = referrer
-                else if (url.contains("3cktv") || url.contains("3iskk")) headers["Referer"] = "https://e.3cktv.com/"
-                else if (url.contains("fosta")) headers["Referer"] = "https://ffosta-tv.quest/"
-                else if (url.contains("alooytv")) headers["Referer"] = "https://ep.alooytv16.xyz/"
-
-                val html = Http.get(url, headers)
-                // Reject Cloudflare challenge / empty
-                if (html.length > 200 &&
-                    !html.contains("Just a moment", ignoreCase = true) &&
-                    !html.contains("cf-browser-verification", ignoreCase = true) &&
-                    !html.contains("Attention Required", ignoreCase = true)) {
-                    return Ksoup.parse(html)
+                val doc = Ksoup.parse(Http.get(url, headers))
+                val html = doc.html()
+                if (!html.contains("you have been blocked") &&
+                    !html.contains("You are unable to access") &&
+                    !html.contains("Sorry, you have been blocked") &&
+                    !html.contains("cf-browser-verification")) {
+                    return doc
                 }
-            } catch (_: Throwable) { /* try next UA */ }
+            } catch (e: Exception) { /* try next UA */ }
         }
         return null
     }
-
-    /**
-     * Public debug helper — returns HTML size + first 100 chars for a URL so we can
-     * understand exactly what the network is returning on-device.
-     */
-    suspend fun debugFetch(url: String): String {
-        return try {
-            val html = Http.get(url, mapOf(
-                "User-Agent" to UA_LIST[0],
-                "Referer" to "https://e.3cktv.com/"
-            ))
-            val size = html.length
-            val head = html.take(200)
-            "size=" + size + " first200=" + head
-        } catch (t: Throwable) {
-            "ERROR: " + (t.message ?: "unknown")
-        }
-    }
-
 
     private val bgRegex = Regex("url\\(['\"]?(.*?)['\"]?\\)")
 
@@ -239,7 +180,7 @@ object EpisodeScraper {
             val shows = mutableListOf<Show>()
             try {
                 val url = if (page <= 1) "https://$domain/video/series/" else "https://$domain/video/series/page/$page/"
-                val doc = fetchDocWithBypass(url) ?: return@withContext emptyList<Show>()
+                val doc = fetchDocWithBypass(url) ?: fetchDocOrThrow(url)
 
                 val elements = doc.select("article.postEp, article.post").ifEmpty { doc.select(".block-post") }
                 elements.forEachIndexed { index, el ->
@@ -305,16 +246,7 @@ object EpisodeScraper {
 
                 val showSlug = showUrl.removeSuffix("/").substringAfterLast("/").replace(".html", "").replace(Regex("[^a-zA-Z0-9_]"), "_").ifEmpty { "show" }
 
-                val doc = try {
-                    kotlinx.coroutines.withTimeoutOrNull(35_000L) {
-                        fetchDocWithBypass(targetUrl) ?: fetchDocOrThrow(targetUrl)
-                    }
-                } catch (_: Throwable) { null }
-
-                if (doc == null) {
-                    // لا تعليق — نرجّع فارغ بسرعة، ثم ViewModel يستخدم fallback
-                    return@withContext emptyList()
-                }
+                val doc = fetchDocWithBypass(targetUrl) ?: fetchDocOrThrow(targetUrl)
 
                 val pageTitle = doc.title().lowercase()
                 if (pageTitle.contains("404") || pageTitle.contains("not found") || pageTitle.contains("غير موجود")) {
@@ -384,35 +316,6 @@ object EpisodeScraper {
                                     )
                                 }
                             }
-                        }
-                    }
-
-                    // Priority 1.5: 3cktv direct .eplist a.epNum (works for musalsal-modablaj-* pages)
-                    if (episodes.isEmpty() && targetUrl.contains("3cktv")) {
-                        val epLinks = doc.select("ul.eplist a.epNum, ul.eplist a[href*='-ep-'], a.epNum[href*='-ep-']")
-                        epLinks.forEachIndexed { idx, aEl ->
-                            try {
-                                var link = aEl.attr("href").trim()
-                                if (link.startsWith("/")) link = "https://e.3cktv.com$link"
-                                if (!link.startsWith("http")) return@forEachIndexed
-                                val rawTitle = aEl.attr("title").ifEmpty { aEl.text() }.trim()
-                                val numMatch = Regex("""(\d+)""").find(rawTitle)
-                                    ?: Regex("""-ep-(\d+)""").find(link)
-                                val epNum = numMatch?.groupValues?.get(1) ?: (idx + 1).toString()
-                                val epId = "3ck_${showSlug}_ep$epNum"
-                                if (episodes.none { it.episodeNum == epNum }) {
-                                    episodes.add(
-                                        Episode(
-                                            id = epId,
-                                            title = "الحلقة $epNum",
-                                            episodeNum = epNum,
-                                            poster = "",
-                                            link = link,
-                                            seasonNumber = 1
-                                        )
-                                    )
-                                }
-                            } catch (_: Throwable) { }
                         }
                     }
 
@@ -843,113 +746,66 @@ object EpisodeScraper {
         }
     }
 
-    // ============ SEARCH: scrape the series listing (works even if ?s= is blocked) ============
-    suspend fun search3cktv(query: String, maxPages: Int = 2): List<Show> {
+    suspend fun search3cktv(query: String, maxPages: Int = 20): List<Show> {
         if (Catalog.isTashShow(query)) return emptyList()
-        val normQuery = Catalog.normalizeTitle(query)
-        if (normQuery.isBlank()) return emptyList()
-
         return withContext(Dispatchers.Default) {
-            val allShows = mutableListOf<Show>()
-            // Try the search URL first
-            try {
-                val encodedQuery = encodeQuery(query)
-                val url = "https://e.3cktv.com/?s=$encodedQuery"
-                val doc = fetchDocWithBypass(url)
-                if (doc != null) {
-                    val parsed = parse3cktvListing(doc)
-                    if (parsed.isNotEmpty()) allShows.addAll(parsed)
-                }
-            } catch (_: Throwable) { }
-
-            // Fallback: scrape the series listing pages (always returns items)
-            if (allShows.isEmpty()) {
+            coroutineScope {
+                val allShows = mutableListOf<Show>()
                 try {
-                    coroutineScope {
-                        val jobs = (1..maxPages).map { page ->
-                            async {
-                                try {
-                                    val url = if (page == 1) "https://e.3cktv.com/video/series/"
-                                              else "https://e.3cktv.com/video/series/page/$page/"
-                                    val doc = fetchDocWithBypass(url)
-                                    if (doc != null) parse3cktvListing(doc) else emptyList()
-                                } catch (_: Throwable) { emptyList<Show>() }
+                    val encodedQuery = encodeQuery(query)
+                    val jobs = (1..maxPages).map { page ->
+                        async {
+                            val pageShows = mutableListOf<Show>()
+                            try {
+                                val url = if (page == 1) "https://e.3cktv.com/?s=$encodedQuery" else "https://e.3cktv.com/page/$page/?s=$encodedQuery"
+                                val doc = fetchDocWithBypass(url) ?: fetchDocOrThrow(url)
+
+                                doc.select("article.postEp, article.post, .block-post").forEach { el ->
+                                    val aTag = el.selectFirst("a") ?: return@forEach
+                                    val title = aTag.attr("title").replace("قصة عشق", "").trim().ifEmpty { el.select(".title").text().replace("قصة عشق", "").trim() }
+                                    val link = aTag.attr("href")
+                                    val imgStyle = aTag.selectFirst(".imgSer")?.attr("style") ?: ""
+                                    var imageUrl = extractPosterFromElement(el)
+                                    if (imageUrl.isBlank()) {
+                                        val urlMatcher = Regex("url\\((.*?)\\)").find(imgStyle)
+                                        if (urlMatcher != null) {
+                                            imageUrl = urlMatcher.groupValues[1].removeSurrounding("'").removeSurrounding("\"")
+                                        }
+                                    }
+
+                                    if (title.isNotEmpty() && link.isNotEmpty()) {
+                                        val ribbon = aTag.selectFirst(".seasonName span:nth-child(2)")?.text() ?: ""
+                                        pageShows.add(Show(
+                                            id = link.hashCode().toString(),
+                                            title = title,
+                                            year = "2026",
+                                            rating = "تركي",
+                                            imdb = 8.5,
+                                            genres = listOf("مسلسلات تركية"),
+                                            description = "شاهد $title مترجم أونلاين بجودة عالية HD على حكايتنا.",
+                                            poster = imageUrl,
+                                            backdrop = imageUrl,
+                                            duration = "45 دقيقة",
+                                            link = link,
+                                            ribbon = ribbon
+                                        ))
+                                    }
+                                }
+                            } catch (e: Exception) {
+                                e.printStackTrace()
                             }
+                            pageShows
                         }
-                        jobs.awaitAll().forEach { allShows.addAll(it) }
                     }
-                } catch (_: Throwable) { }
-            }
-
-            // Filter by query tokens
-            val tokens = normQuery.split(" ").filter { it.length >= 2 }
-            if (tokens.isEmpty()) {
-                return@withContext allShows.distinctBy { it.link }
-                    .filterNot { Catalog.isTashShow(it.title, it.link, it.id) }
-                    .take(60)
-            }
-
-            allShows.distinctBy { it.link }
-                .filterNot { Catalog.isTashShow(it.title, it.link, it.id) }
-                .filter { show ->
-                    val normTitle = Catalog.normalizeTitle(show.title)
-                    tokens.any { normTitle.contains(it) }
+                    val results = jobs.awaitAll()
+                    results.forEach { allShows.addAll(it) }
+                } catch (e: Exception) {
+                    e.printStackTrace()
                 }
-                .take(60)
+                allShows.distinctBy { it.link }.filterNot { Catalog.isTashShow(it.title, it.link, it.id) }
+            }
         }
     }
-
-    // Shared listing parser for /video/series/ and /?s= pages
-    private fun parse3cktvListing(doc: Document): List<Show> {
-        val out = mutableListOf<Show>()
-        doc.select("article.postEp, article.post, .block-post").forEach { el ->
-            try {
-                val aTag = el.selectFirst("a[href]") ?: return@forEach
-                val rawTitle = aTag.attr("title")
-                    .ifEmpty { aTag.selectFirst(".title")?.text() ?: "" }
-                    .replace("قصة عشق", "")
-                    .trim()
-                if (rawTitle.isBlank()) return@forEach
-
-                var link = aTag.attr("href").trim()
-                if (link.startsWith("/")) link = "https://e.3cktv.com$link"
-                if (!link.startsWith("http")) return@forEach
-
-                // Poster from style: background-image:url(...)
-                var poster = ""
-                val imgEl = aTag.selectFirst(".imgSer")
-                if (imgEl != null) {
-                    val style = imgEl.attr("style")
-                    val m = Regex("url\\((['\"]?)([^)'\"]+)\\1\\)").find(style)
-                    poster = m?.groupValues?.getOrNull(2) ?: imgEl.attr("data-src")
-                }
-                if (poster.isBlank()) {
-                    poster = aTag.selectFirst("img")?.attr("src") ?: ""
-                }
-                poster = TmdbHelper.cleanPosterUrl(poster)
-
-                val ribbon = aTag.selectFirst(".seasonName")?.text()?.trim() ?: ""
-
-                out.add(Show(
-                    id = link.hashCode().toString(),
-                    title = rawTitle,
-                    year = "2026",
-                    rating = "تركي",
-                    imdb = 8.0,
-                    genres = listOf("مسلسلات تركية"),
-                    description = "شاهد $rawTitle مترجم أونلاين بجودة عالية HD على حكايتنا.",
-                    poster = poster,
-                    backdrop = poster,
-                    duration = "45 دقيقة",
-                    link = link,
-                    ribbon = ribbon.ifBlank { null }
-                ))
-            } catch (_: Throwable) { }
-        }
-        return out
-    }
-
-
 
     fun cleanFostaTitle(rawTitle: String): String {
         var t = rawTitle
@@ -982,7 +838,7 @@ object EpisodeScraper {
             val list = mutableListOf<Show>()
             try {
                 val url = if (page <= 1) "https://ffosta-tv.quest/moslslat.php" else "https://ffosta-tv.quest/moslslat.php?&page=$page"
-                val doc = fetchDocWithBypass(url) ?: return@withContext emptyList<Show>()
+                val doc = fetchDocWithBypass(url) ?: fetchDocOrThrow(url)
 
                 val items = doc.select("li.col-xs-6, li.col-sm-4, li.col-md-2, li[class*='col-']")
                 items.forEachIndexed { idx, el ->
@@ -1037,7 +893,7 @@ object EpisodeScraper {
             val list = mutableListOf<Show>()
             try {
                 val url = if (page <= 1) "https://ffosta-tv.quest/category.php?cat=$category" else "https://ffosta-tv.quest/category.php?cat=$category&page=$page"
-                val doc = fetchDocWithBypass(url) ?: return@withContext emptyList<Show>()
+                val doc = fetchDocWithBypass(url) ?: fetchDocOrThrow(url)
 
                 val items = doc.select("li.col-xs-6, li.col-sm-4, li.col-md-2, li[class*='col-']")
                 items.forEachIndexed { idx, el ->
@@ -1092,7 +948,7 @@ object EpisodeScraper {
             val list = mutableListOf<Show>()
             try {
                 val url = "https://ffosta-tv.quest/"
-                val doc = fetchDocWithBypass(url) ?: return@withContext emptyList<Show>()
+                val doc = fetchDocWithBypass(url) ?: fetchDocOrThrow(url)
 
                 val items = doc.select("li.col-xs-6, li.col-sm-4, li.col-md-2, li[class*='col-'], .block-post, .block-series")
                 items.forEachIndexed { idx, el ->
@@ -1146,14 +1002,14 @@ object EpisodeScraper {
         }
     }
 
-    suspend fun searchFosta(query: String, maxPages: Int = 2): List<Show> {
+    suspend fun searchFosta(query: String, maxPages: Int = 1): List<Show> {
         if (Catalog.isTashShow(query)) return emptyList()
         return withContext(Dispatchers.Default) {
             val list = mutableListOf<Show>()
             try {
                 val enc = encodeQuery(query)
                 val url = "https://ffosta-tv.quest/search.php?keywords=$enc"
-                val doc = fetchDocWithBypass(url) ?: return@withContext emptyList<Show>()
+                val doc = fetchDocWithBypass(url) ?: fetchDocOrThrow(url)
 
                 val items = doc.select("li.col-xs-6, li.col-sm-4, li.col-md-2, li[class*='col-']")
                 items.forEachIndexed { idx, el ->

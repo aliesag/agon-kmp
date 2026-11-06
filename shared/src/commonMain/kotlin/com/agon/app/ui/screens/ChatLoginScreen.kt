@@ -69,7 +69,7 @@ fun ChatLoginScreen(
             errorMessage = "اسم المستخدم يجب أن يكون حرفين على الأقل"
         } else if (trimmedEmail.isBlank()) {
             errorMessage = "يرجى إدخال البريد الإلكتروني"
-        } else if (!Regex("^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$").matches(trimmedEmail)) {
+        } else if (!Regex("^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$").matches(trimmedEmail)) {
             errorMessage = "صيغة البريد الإلكتروني غير صحيحة"
         } else {
             errorMessage = null

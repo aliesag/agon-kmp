@@ -32,7 +32,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.compose.runtime.collectAsState
 import com.agon.app.ui.AuthState
 import com.agon.app.ui.AuthViewModel
 import kotlinx.coroutines.launch
@@ -46,11 +46,11 @@ fun LoginScreen(
     onNavigateForgotPassword: () -> Unit,
     onNavigateVerification: (() -> Unit)? = null
 ) {
-    val state by authViewModel.authState.collectAsStateWithLifecycle()
+    val state by authViewModel.authState.collectAsState()
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
-        val snackbarHostState = remember { SnackbarHostState() }
+    val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
 
     LaunchedEffect(state) {
@@ -240,7 +240,7 @@ fun RegisterScreen(
     onNavigateLogin: () -> Unit,
     onStoreExtra: (String, String) -> Unit
 ) {
-    val state by authViewModel.authState.collectAsStateWithLifecycle()
+    val state by authViewModel.authState.collectAsState()
     var name by remember { mutableStateOf(authViewModel.savedRegisterName) }
     var email by remember { mutableStateOf(authViewModel.savedRegisterEmail) }
     var password by remember { mutableStateOf(authViewModel.savedRegisterPassword) }
@@ -403,7 +403,7 @@ fun ForgotPasswordScreen(
     authViewModel: AuthViewModel,
     onBackToLogin: () -> Unit
 ) {
-    val state by authViewModel.authState.collectAsStateWithLifecycle()
+    val state by authViewModel.authState.collectAsState()
     var email by remember { mutableStateOf("") }
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
@@ -490,7 +490,7 @@ fun EmailVerificationScreen(
     onNavigateNext: () -> Unit,
     onNavigateLogin: () -> Unit
 ) {
-    val state by authViewModel.authState.collectAsStateWithLifecycle()
+    val state by authViewModel.authState.collectAsState()
     
     LaunchedEffect(state) {
         if (state is AuthState.Success) {

@@ -30,6 +30,10 @@ targets:
       properties:
         NSAppTransportSecurity: { NSAllowsArbitraryLoads: true }   # scraped streams are often plain http
         UIBackgroundModes: [audio]                                 # keep playback alive in background
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        NSPhotoLibraryUsageDescription: لاختيار صورة الملف الشخصي أو فيديو للنشر
+        NSMicrophoneUsageDescription: للرسائل الصوتية في الدردشة
     preBuildScripts:
       - name: Build Kotlin framework
         script: |

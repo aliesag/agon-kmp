@@ -261,11 +261,11 @@ fun ContinueRow(
         ) {
             items(items) { p ->
                 val show = Catalog.byId(p.showId) ?: return@items
-                Column(modifier = Modifier.width(160.dp)) {
+                Column(modifier = Modifier.width(220.dp)) {
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .height(90.dp)
+                            .height(124.dp)
                             .tvClickable(shape = RoundedCornerShape(8.dp)) { onClick(show) }
                     ) {
                         PosterArt(

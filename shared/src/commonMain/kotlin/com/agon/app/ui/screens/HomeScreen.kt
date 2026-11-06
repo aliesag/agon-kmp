@@ -22,9 +22,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Info
-import androidx.compose.material.icons.filled.AutoAwesome
-import androidx.compose.material.icons.filled.Search
-import androidx.compose.material3.IconButton
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.SportsSoccer
 import androidx.compose.material.icons.filled.ChevronLeft
@@ -78,8 +75,6 @@ fun HomeScreen(
     onOpenMatches: (() -> Unit)? = null,
     onOpenShow: (String) -> Unit,
     onPlay: (String, String?) -> Unit,
-    onSearchClick: (() -> Unit)? = null,
-    onOpenHakim: (() -> Unit)? = null,
 ) {
     val shows by vm.shows.collectAsStateWithLifecycle()
     val categories by vm.categories.collectAsStateWithLifecycle()
@@ -107,7 +102,6 @@ fun HomeScreen(
     if (showReportDialog) {
         ReportIssueDialog(
             deviceType = deviceType,
-            showId = "home",
             onDismiss = { showReportDialog = false }
         )
     }
@@ -158,7 +152,6 @@ fun HomeScreen(
                     .fillMaxSize()
                     .widthIn(max = 1200.dp)
             ) {
-
             if (featuredShows.isNotEmpty()) {
                 item {
                     val pagerState = androidx.compose.foundation.pager.rememberPagerState { featuredShows.size }

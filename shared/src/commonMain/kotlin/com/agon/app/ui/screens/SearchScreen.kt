@@ -1,6 +1,7 @@
 package com.agon.app.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,10 +16,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
-import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -26,7 +25,6 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.SearchOff
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -35,7 +33,6 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -49,9 +46,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.agon.app.data.Catalog
 import com.agon.app.ui.components.PosterArt
 import com.agon.app.ui.components.RatingBadge
-import com.agon.app.ui.components.VoiceSearchOverlay
 import com.agon.app.ui.tvClickable
 import com.agon.app.viewmodel.AppViewModel
 
@@ -59,19 +56,12 @@ import com.agon.app.viewmodel.AppViewModel
 fun SearchScreen(vm: AppViewModel, onOpenShow: (String) -> Unit) {
     val deviceType by vm.deviceType.collectAsStateWithLifecycle()
     val isSearchingRemote by vm.isSearchingRemote.collectAsStateWithLifecycle()
-    val shows by vm.shows.collectAsStateWithLifecycle()
     var query by remember { mutableStateOf("") }
     var filterType by remember { mutableStateOf("الكل") }
     var initialLoading by remember { mutableStateOf(true) }
 
     LaunchedEffect(Unit) {
-        // Ensure the full catalog starts loading immediately in background
-        try {
-            if (!vm.fullCatalogLoaded.value && !vm.catalogLoading.value) {
-                vm.fetchFullCatalogFromSite()
-            }
-        } catch (_: Throwable) { }
-        // Show loading briefly even if results are local
+        // Show loading briefly even if results are local, to fulfill user requirement
         kotlinx.coroutines.delay(800)
         initialLoading = false
     }
@@ -98,36 +88,17 @@ fun SearchScreen(vm: AppViewModel, onOpenShow: (String) -> Unit) {
             "رومانسي"
         )
     }
-
-    val results = remember(query, filterType, shows) {
-        try {
-            val r = vm.search(query, filterType)
-            if (r.isEmpty() && query.isBlank()) {
-                // Fallback: hardcoded catalog when _shows hasn't populated yet
-                com.agon.app.data.Catalog.all.filterNot {
-                    com.agon.app.data.Catalog.isTashShow(it.title, it.link, it.id)
-                }
-            } else r
-        } catch (_: Throwable) {
-            // On any exception, fall back to hardcoded catalog for empty query
-            if (query.isBlank()) {
-                try {
-                    com.agon.app.data.Catalog.all.filterNot {
-                        com.agon.app.data.Catalog.isTashShow(it.title, it.link, it.id)
-                    }
-                } catch (_: Throwable) { emptyList() }
-            } else emptyList()
-        }
-    }
+    
+    val results = vm.search(query, filterType)
 
     var displayLimit by remember(query, filterType, results.size) { mutableIntStateOf(20) }
     val paginatedResults = remember(results, displayLimit) {
         results.take(displayLimit)
     }
 
-    val gridState = rememberLazyGridState()
+    val gridState = androidx.compose.foundation.lazy.grid.rememberLazyGridState()
     val shouldLoadMore = remember {
-        derivedStateOf {
+        androidx.compose.runtime.derivedStateOf {
             val totalItems = gridState.layoutInfo.totalItemsCount
             val lastVisibleItem = gridState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0
             totalItems > 0 && lastVisibleItem >= totalItems - 4
@@ -143,7 +114,7 @@ fun SearchScreen(vm: AppViewModel, onOpenShow: (String) -> Unit) {
     var showVoiceSearchOverlay by remember { mutableStateOf(false) }
 
     if (showVoiceSearchOverlay) {
-        VoiceSearchOverlay(
+        com.agon.app.ui.components.VoiceSearchOverlay(
             visible = true,
             onDismiss = { showVoiceSearchOverlay = false },
             onResult = { text ->
@@ -229,9 +200,9 @@ fun SearchScreen(vm: AppViewModel, onOpenShow: (String) -> Unit) {
         Spacer(Modifier.height(12.dp))
 
         if (isSearchingRemote || (initialLoading && query.isEmpty())) {
-            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    CircularProgressIndicator(
+                    androidx.compose.material3.CircularProgressIndicator(
                         color = Color(0xFFE50914),
                         modifier = Modifier.size(48.dp)
                     )
@@ -245,7 +216,7 @@ fun SearchScreen(vm: AppViewModel, onOpenShow: (String) -> Unit) {
                 }
             }
         } else if (results.isEmpty()) {
-            Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(
                         Icons.Filled.SearchOff,
@@ -265,7 +236,6 @@ fun SearchScreen(vm: AppViewModel, onOpenShow: (String) -> Unit) {
                 contentPadding = PaddingValues(horizontal = horizontalPadding, vertical = 12.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
                 verticalArrangement = Arrangement.spacedBy(14.dp),
-                modifier = Modifier.weight(1f).fillMaxWidth(),
             ) {
                 items(paginatedResults) { show ->
                     val isDubbed = show.genres.contains("مدبلج") || show.rating == "مدبلج" || show.title.contains("مدبلج")
@@ -305,7 +275,7 @@ fun SearchScreen(vm: AppViewModel, onOpenShow: (String) -> Unit) {
                                 .aspectRatio(2f / 3f)
                         ) {
                             PosterArt(showId = show.id, posterUrl = show.poster, title = show.title, modifier = Modifier.fillMaxSize(), titleSize = 14, onClick = { onOpenShow(show.id) })
-
+                            
                             // Dubbed / Subtitled tag badge
                             Box(
                                 modifier = Modifier
@@ -329,14 +299,14 @@ fun SearchScreen(vm: AppViewModel, onOpenShow: (String) -> Unit) {
                 }
 
                 if (displayLimit < results.size) {
-                    item(span = { GridItemSpan(maxLineSpan) }) {
+                    item(span = { androidx.compose.foundation.lazy.grid.GridItemSpan(maxLineSpan) }) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 20.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            CircularProgressIndicator(
+                            androidx.compose.material3.CircularProgressIndicator(
                                 color = Color(0xFFE50914),
                                 modifier = Modifier.size(32.dp)
                             )

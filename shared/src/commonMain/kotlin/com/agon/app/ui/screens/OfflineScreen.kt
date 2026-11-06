@@ -10,7 +10,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.DownloadDone
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Refresh
@@ -27,12 +26,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import org.jetbrains.compose.resources.painterResource
+import agon_kmp.shared.generated.resources.Res
+import agon_kmp.shared.generated.resources.offline_sad_character
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
+import com.agon.app.R
 import com.agon.app.data.EpisodeDownloaderManager
 import com.agon.app.ui.theme.NetflixRed
 
@@ -42,7 +45,7 @@ fun OfflineScreen(
     onOpenDownloads: () -> Unit,
     onPlayEpisode: (localFilePath: String, title: String) -> Unit
 ) {
-        val downloads by EpisodeDownloaderManager.downloadedEpisodes.collectAsState()
+    val downloads by EpisodeDownloaderManager.downloadedEpisodes.collectAsState()
 
     Box(
         modifier = Modifier
@@ -101,11 +104,11 @@ fun OfflineScreen(
                         .border(1.5.dp, Color(0xFFE50914).copy(alpha = 0.4f), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    Icon(
-                        imageVector = androidx.compose.material.icons.Icons.Filled.Info,
+                    Image(
+                        painter = painterResource(Res.drawable.offline_sad_character),
                         contentDescription = "لا يوجد اتصال",
-                        tint = Color(0xFFE50914),
-                        modifier = Modifier.size(56.dp)
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize()
                     )
                 }
 
@@ -183,10 +186,14 @@ fun OfflineScreen(
                                     .clip(RoundedCornerShape(8.dp))
                                     .background(Color(0xFF1E1E24))
                                     .clickable {
-                                        onPlayEpisode(
-                                            episode.localFilePath,
-                                            "${episode.showTitle} - ${episode.episodeTitle}"
-                                        )
+                                        if (com.agon.app.platform.PlatformFiles.exists(episode.localFilePath) && com.agon.app.platform.PlatformFiles.size(episode.localFilePath) > 0) {
+                                            onPlayEpisode(
+                                                episode.localFilePath,
+                                                "${episode.showTitle} - ${episode.episodeTitle}"
+                                            )
+                                        } else {
+                                            com.agon.app.platform.PlatformUi.toast("ملف الحلقة غير موجود أو تالف، يرجى إعادة تحميله.")
+                                        }
                                     }
                                     .padding(8.dp),
                                 verticalAlignment = Alignment.CenterVertically

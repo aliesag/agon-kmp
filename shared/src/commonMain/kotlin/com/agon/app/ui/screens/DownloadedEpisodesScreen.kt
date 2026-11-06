@@ -56,7 +56,7 @@ fun DownloadedEpisodesScreen(
     onBack: () -> Unit,
     onPlayOffline: (localFilePath: String, title: String) -> Unit
 ) {
-        val downloads by EpisodeDownloaderManager.downloadedEpisodes.collectAsState()
+    val downloads by EpisodeDownloaderManager.downloadedEpisodes.collectAsState()
 
     Scaffold(
         topBar = {

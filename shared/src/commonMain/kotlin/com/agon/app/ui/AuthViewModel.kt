@@ -55,7 +55,7 @@ class DefaultAuthRepository : AuthRepository {
 }
 
 class AuthViewModel(
-    private val repo: AuthRepository = DefaultAuthRepository()
+    private val repo: AuthRepository = com.agon.app.data.FirebaseAuthRest()
 ) : ViewModel() {
 
     private val _authState = MutableStateFlow<AuthState>(AuthState.Idle)

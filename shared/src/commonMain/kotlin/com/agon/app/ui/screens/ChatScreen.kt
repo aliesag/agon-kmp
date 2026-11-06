@@ -27,8 +27,6 @@ import io.ktor.client.request.setBody
 import io.ktor.client.request.url
 import com.agon.app.Http
 import com.agon.app.audio.rememberAudioRecorder
-import com.agon.app.picker.rememberImagePicker
-import com.agon.app.utils.ImageUploader
 import com.agon.app.viewmodel.AppViewModel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -69,9 +67,7 @@ fun ChatScreen(
     val scope = rememberCoroutineScope()
     val recorder = rememberAudioRecorder()
 
-    var isUploadingImage by remember { mutableStateOf(false) }
-
-suspend fun load() {
+    suspend fun load() {
         try {
             val raw = Http.get(CHAT_URL)
             if (raw.isNullOrBlank() || raw == "null") { messages = emptyList(); return }
@@ -95,39 +91,10 @@ suspend fun load() {
                     )
                 )
             }
-            // Firebase push-ids sort lexicographically in chronological order.
-            messages = out.sortedBy { it.id }
+            messages = out.sortedWith(compareBy<ChatMessage> { it.timestamp }.thenBy { it.id })
             if (messages.isNotEmpty()) listState.animateScrollToItem(messages.size - 1)
         } catch (_: Exception) { /* keep old list */ }
     }
-
-    val imagePicker = rememberImagePicker { bytes ->
-        isUploadingImage = true
-        scope.launch {
-            val url = ImageUploader.uploadImageBytes(bytes)
-            if (url != null) {
-                val payload = JSONObject().apply {
-                    put("text", "")
-                    put("imageUrl", url)
-                    put("user", profileName)
-                    put("avatar", profileAvatar)
-                    put("color", profileColor.toLong() and 0xFFFFFFFFL)
-                    put("timestamp", Clock.System.now().toEpochMilliseconds())
-                }.toString()
-                try {
-                    Http.client.post {
-                        url(CHAT_URL)
-                        setBody(payload)
-                        header("Content-Type", "application/json")
-                    }
-                    load()
-                } catch (_: Exception) { }
-            }
-            isUploadingImage = false
-        }
-    }
-
-    
 
     LaunchedEffect(Unit) {
         while (true) {
@@ -217,13 +184,6 @@ suspend fun load() {
                 .padding(horizontal = 8.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = { imagePicker.pick() }, enabled = !isUploadingImage) {
-                if (isUploadingImage) {
-                    CircularProgressIndicator(color = NetflixRed, strokeWidth = 2.dp, modifier = Modifier.size(20.dp))
-                } else {
-                    Icon(Icons.Filled.Image, contentDescription = "صورة", tint = Color.White)
-                }
-            }
             IconButton(onClick = { showVoicePanel = !showVoicePanel }) {
                 Icon(
                     if (showVoicePanel) Icons.Filled.Close else Icons.Filled.Mic,
@@ -296,29 +256,13 @@ private fun MessageBubble(msg: ChatMessage, isOwn: Boolean) {
                 Text(msg.user, color = Color(0xFFB3B3B3), fontSize = 11.sp)
                 Spacer(Modifier.height(2.dp))
             }
-            if (msg.imageUrl.isNotBlank()) {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color(0xFF23232B))
-                        .padding(4.dp)
-                ) {
-                    coil3.compose.AsyncImage(
-                        model = msg.imageUrl,
-                        contentDescription = "صورة",
-                        modifier = Modifier.size(180.dp).clip(RoundedCornerShape(10.dp)),
-                        contentScale = androidx.compose.ui.layout.ContentScale.Crop
-                    )
-                }
-            } else {
-                Box(
-                    modifier = Modifier
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(if (isOwn) NetflixRed else Color(0xFF23232B))
-                        .padding(horizontal = 12.dp, vertical = 8.dp)
-                ) {
-                    Text(msg.text, color = Color.White, fontSize = 14.sp)
-                }
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(if (isOwn) NetflixRed else Color(0xFF23232B))
+                    .padding(horizontal = 12.dp, vertical = 8.dp)
+            ) {
+                Text(msg.text, color = Color.White, fontSize = 14.sp)
             }
         }
     }

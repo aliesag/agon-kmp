@@ -367,25 +367,6 @@ private fun VideoPlayerSection(
             .background(Color.Black),
         contentAlignment = Alignment.Center
     ) {
-        // Floating back button — always available
-        Box(
-            modifier = Modifier
-                .align(Alignment.TopStart)
-                .padding(12.dp)
-                .size(40.dp)
-                .clip(RoundedCornerShape(50))
-                .background(Color.Black.copy(alpha = 0.6f))
-                .clickable { onBack() },
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                Icons.AutoMirrored.Filled.ArrowBack,
-                contentDescription = "رجوع",
-                tint = Color.White,
-                modifier = Modifier.size(22.dp)
-            )
-        }
-
         if (!isLoadingVideo && activeUrl != null) {
             // Native playback for direct streams (mp4/m3u8/webm). Embeds stay in WebView.
             val direct = activeUrl.lowercase().let {
@@ -650,22 +631,29 @@ private fun EpisodesTab(
         }
         return
     }
-    LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(vertical = 8.dp)) {
-        item {
-            Text(
-                "قائمة الحلقات (${episodes.size})",
-                color = Color.White,
-                fontSize = 16.sp,
-                fontWeight = FontWeight.Bold,
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-            )
-        }
+    LazyColumn(modifier = Modifier.fillMaxSize(), contentPadding = PaddingValues(8.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         items(episodes) { ep ->
-            com.agon.app.ui.components.EpisodeItemRow(
-                episode = ep,
-                isSelected = ep.id == currentEpisode?.id,
-                onClick = { onEpisodeSelected(ep) }
-            )
+            val selected = ep.id == currentEpisode?.id
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(if (selected) NetflixRed.copy(alpha = 0.25f) else Color(0xFF16161C))
+                    .clickable { onEpisodeSelected(ep) }
+                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Filled.PlayArrow, contentDescription = null, tint = if (selected) NetflixRed else Color.White)
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    "${ep.episodeNum} - ${ep.title}",
+                    color = Color.White,
+                    fontSize = 13.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.weight(1f)
+                )
+            }
         }
     }
 }

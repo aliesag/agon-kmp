@@ -11,4 +11,6 @@ object BuildConfig {
     const val TMDB_API_KEY: String = ""
     const val TMDB_ACCESS_TOKEN: String = ""
     const val GEMINI_API_KEY: String = ""
+    // FILL: Firebase console -> Project settings -> General -> Web API Key (the one in google-services.json is a placeholder)
+    const val FIREBASE_API_KEY: String = ""
 }
